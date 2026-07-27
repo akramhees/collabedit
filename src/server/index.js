@@ -5,6 +5,10 @@ const { WebSocketServer } = require('ws');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+// Store document state
+let documentContent = '';
+const clients = new Map();
+
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url === '') {
     res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -24,19 +28,43 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  console.log('Client connected');
+  const clientId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  clients.set(clientId, ws);
+  
+  console.log(`Client ${clientId} connected. Total clients: ${clients.size}`);
+  
+  // Send current document content to new client
+  ws.send(JSON.stringify({
+    type: 'sync',
+    content: documentContent
+  }));
   
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      wss.clients.forEach((client) => {
-        if (client !== ws && client.readyState === 1) {
-          client.send(message);
-        }
-      });
+      
+      if (data.type === 'update') {
+        // Update document content
+        documentContent = data.content;
+        
+        // Broadcast to all other clients
+        clients.forEach((client, id) => {
+          if (id !== clientId && client.readyState === 1) {
+            client.send(JSON.stringify({
+              type: 'update',
+              content: documentContent
+            }));
+          }
+        });
+      }
     } catch (e) {
       console.error('Error:', e);
     }
+  });
+  
+  ws.on('close', () => {
+    clients.delete(clientId);
+    console.log(`Client ${clientId} disconnected. Total clients: ${clients.size}`);
   });
 });
 
