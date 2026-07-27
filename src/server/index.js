@@ -9,7 +9,7 @@ let documentContent = '';
 let drawingData = '';
 const clients = new Map();
 const drawHistory = [];
-const maxHistory = 50;
+const maxHistory = 100;
 let historyIndex = -1;
 
 const server = http.createServer((req, res) => {
@@ -40,7 +40,8 @@ wss.on('connection', (ws) => {
     type: 'sync',
     content: documentContent,
     drawing: drawingData,
-    history: drawHistory
+    history: drawHistory,
+    historyIndex: historyIndex
   }));
   
   ws.on('message', (message) => {
@@ -80,16 +81,6 @@ wss.on('connection', (ws) => {
       } else if (data.type === 'undo_draw') {
         if (historyIndex >= 0) {
           historyIndex--;
-          let state = '';
-          for (let i = 0; i <= historyIndex; i++) {
-            const entry = drawHistory[i];
-            if (entry.type === 'clear') {
-              state = '';
-            } else if (entry.points) {
-              state += JSON.stringify(entry) + '|';
-            }
-          }
-          drawingData = state;
           broadcast({
             type: 'undo_draw',
             historyIndex: historyIndex
@@ -98,21 +89,22 @@ wss.on('connection', (ws) => {
       } else if (data.type === 'redo_draw') {
         if (historyIndex < drawHistory.length - 1) {
           historyIndex++;
-          let state = '';
-          for (let i = 0; i <= historyIndex; i++) {
-            const entry = drawHistory[i];
-            if (entry.type === 'clear') {
-              state = '';
-            } else if (entry.points) {
-              state += JSON.stringify(entry) + '|';
-            }
-          }
-          drawingData = state;
           broadcast({
             type: 'redo_draw',
             historyIndex: historyIndex
           }, clientId);
         }
+      } else if (data.type === 'erase_draw') {
+        const eraseData = data.eraseData;
+        drawHistory.push({ type: 'erase', data: eraseData });
+        if (drawHistory.length > maxHistory) {
+          drawHistory.shift();
+        }
+        historyIndex = drawHistory.length - 1;
+        broadcast({
+          type: 'erase_draw',
+          eraseData: eraseData
+        }, clientId);
       }
     } catch (e) {
       console.error('Error:', e);

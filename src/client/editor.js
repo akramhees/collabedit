@@ -8,12 +8,13 @@ class EditorState {
     this.lastX = 0;
     this.lastY = 0;
     this.drawColor = '#4CAF50';
-    this.drawSize = 3;
+    this.drawSize = 4;
     this.isDrawMode = false;
     this.isRemoteUpdate = false;
     this.drawHistory = [];
     this.historyIndex = -1;
     this.isUndoing = false;
+    this.isEraser = false;
   }
 
   connect(roomId = 'default') {
@@ -70,7 +71,7 @@ class EditorState {
       
       if (data.history) {
         this.drawHistory = data.history;
-        this.historyIndex = this.drawHistory.length - 1;
+        this.historyIndex = data.historyIndex !== undefined ? data.historyIndex : this.drawHistory.length - 1;
         this.replayDrawHistory();
       }
       
@@ -113,6 +114,12 @@ class EditorState {
       this.historyIndex = data.historyIndex;
       this.replayDrawHistory();
       this.isUndoing = false;
+    } else if (data.type === 'erase_draw') {
+      if (!this.isUndoing) {
+        this.eraseRemoteStroke(data.eraseData);
+        this.drawHistory.push({ type: 'erase', data: data.eraseData });
+        this.historyIndex = this.drawHistory.length - 1;
+      }
     }
   }
 
@@ -125,6 +132,9 @@ class EditorState {
       const entry = this.drawHistory[i];
       if (entry.type === 'clear') {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else if (entry.type === 'erase') {
+        // Skip erase entries during replay - we'll re-apply them differently
+        continue;
       } else if (entry.points && entry.points.length > 1) {
         ctx.beginPath();
         ctx.moveTo(entry.points[0].x, entry.points[0].y);
@@ -132,10 +142,18 @@ class EditorState {
           ctx.lineTo(entry.points[j].x, entry.points[j].y);
         }
         ctx.strokeStyle = entry.color || '#4CAF50';
-        ctx.lineWidth = entry.size || 3;
+        ctx.lineWidth = entry.size || 4;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.stroke();
+      }
+    }
+    
+    // Re-apply erase operations
+    for (let i = 0; i <= this.historyIndex && i < this.drawHistory.length; i++) {
+      const entry = this.drawHistory[i];
+      if (entry.type === 'erase' && entry.data) {
+        this.eraseRemoteStroke(entry.data);
       }
     }
   }
@@ -153,10 +171,30 @@ class EditorState {
       ctx.lineTo(points[i].x, points[i].y);
     }
     ctx.strokeStyle = strokeData.color || '#4CAF50';
-    ctx.lineWidth = strokeData.size || 3;
+    ctx.lineWidth = strokeData.size || 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
+  }
+
+  eraseRemoteStroke(eraseData) {
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    const points = eraseData.points;
+    
+    if (!points || points.length < 2) return;
+    
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.lineWidth = eraseData.size || 20;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   sendUpdate(content) {
@@ -175,6 +213,15 @@ class EditorState {
         type: 'draw',
         drawData: drawData,
         drawing: JSON.stringify(drawData)
+      }));
+    }
+  }
+
+  sendEraseStroke(points, size) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'erase_draw',
+        eraseData: { points, size }
       }));
     }
   }
@@ -271,12 +318,24 @@ function draw(e) {
   const ctx = canvas.getContext('2d');
   const coords = getCanvasCoords(e);
   
-  ctx.beginPath();
-  ctx.moveTo(editorState.lastX, editorState.lastY);
-  ctx.lineTo(coords.x, coords.y);
-  ctx.strokeStyle = editorState.drawColor;
-  ctx.lineWidth = editorState.drawSize;
-  ctx.stroke();
+  if (editorState.isEraser) {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(editorState.lastX, editorState.lastY);
+    ctx.lineTo(coords.x, coords.y);
+    ctx.lineWidth = editorState.drawSize * 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(editorState.lastX, editorState.lastY);
+    ctx.lineTo(coords.x, coords.y);
+    ctx.strokeStyle = editorState.drawColor;
+    ctx.lineWidth = editorState.drawSize;
+    ctx.stroke();
+  }
   
   editorState.lastX = coords.x;
   editorState.lastY = coords.y;
@@ -285,11 +344,11 @@ function draw(e) {
 
 function endDraw() {
   if (editorState.isDrawing && currentStroke.length > 1) {
-    editorState.sendDrawStroke(
-      currentStroke,
-      editorState.drawColor,
-      editorState.drawSize
-    );
+    if (editorState.isEraser) {
+      editorState.sendEraseStroke(currentStroke, editorState.drawSize * 5);
+    } else {
+      editorState.sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
+    }
   }
   editorState.isDrawing = false;
   currentStroke = [];
@@ -329,12 +388,31 @@ function toggleDrawMode() {
     btn.style.color = '#4CAF50';
     btn.style.borderColor = '#4CAF50';
     document.body.style.cursor = 'crosshair';
+    document.getElementById('eraserToggle').style.display = 'inline-flex';
   } else {
     canvas.style.display = 'none';
     editor.style.opacity = '1';
     btn.style.color = '';
     btn.style.borderColor = '';
     document.body.style.cursor = '';
+    editorState.isEraser = false;
+    document.getElementById('eraserToggle').style.display = 'none';
+    document.getElementById('eraserToggle').style.color = '';
+    document.getElementById('eraserToggle').style.borderColor = '';
+  }
+}
+
+function toggleEraser() {
+  editorState.isEraser = !editorState.isEraser;
+  const btn = document.getElementById('eraserToggle');
+  if (editorState.isEraser) {
+    btn.style.color = '#f44336';
+    btn.style.borderColor = '#f44336';
+    document.body.style.cursor = 'not-allowed';
+  } else {
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    document.body.style.cursor = 'crosshair';
   }
 }
 
@@ -444,6 +522,22 @@ function changeFontColor() {
   document.execCommand('foreColor', false, color);
 }
 
+function changeDrawColor() {
+  const color = document.getElementById('drawColor').value;
+  editorState.drawColor = color;
+  if (editorState.isEraser) {
+    editorState.isEraser = false;
+    document.getElementById('eraserToggle').style.color = '';
+    document.getElementById('eraserToggle').style.borderColor = '';
+    document.body.style.cursor = 'crosshair';
+  }
+}
+
+function changeDrawSize() {
+  const size = parseInt(document.getElementById('drawSize').value);
+  editorState.drawSize = size;
+}
+
 function toggleRoomInput() {
   const input = document.getElementById('roomInput');
   const roomId = document.getElementById('roomId');
@@ -506,4 +600,4 @@ setInterval(() => {
 
 setTimeout(initCanvas, 100);
 
-console.log('Editor initialized with undo/redo for drawings');
+console.log('Editor initialized with eraser and undo/redo for drawings');
