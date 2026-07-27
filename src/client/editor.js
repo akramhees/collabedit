@@ -21,8 +21,24 @@ class EditorState {
     this.typingTimeout = null;
     this.isTyping = false;
     this.activeTypers = {};
-    this.nicknameConfirmed = false;
-    this.typingTimer = null;
+    this.userColors = {};
+    this.cursorElements = {};
+    this.typingIndicatorTimeout = null;
+    this.userPositions = {};
+    this.lastActiveTypers = {};
+  }
+
+  getUserColor(name) {
+    const colors = ['#ED7497', '#9CDBD0', '#F8D06E', '#7BC4B8', '#E8A87C', '#85D4E8', '#D4A5E8', '#E8A87C'];
+    if (!this.userColors[name]) {
+      const index = Object.keys(this.userColors).length % colors.length;
+      this.userColors[name] = colors[index];
+    }
+    return this.userColors[name];
+  }
+
+  getInitials(name) {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 
   connect(roomId = 'default') {
@@ -154,16 +170,83 @@ class EditorState {
         console.log('Remote erase applied');
       }
     } else if (data.type === 'user_typing') {
-      console.log('Typing from:', data.userName);
+      console.log(' Typing from:', data.userName);
       this.activeTypers[data.userName] = Date.now();
+      this.showTypingCursor(data.userName);
       this.updateTypingIndicator();
     } else if (data.type === 'user_connected') {
-      console.log('User connected:', data.userName);
+      console.log(' User connected:', data.userName);
       this.updateTypingIndicator();
     } else if (data.type === 'user_disconnected') {
-      console.log('User disconnected:', data.userName);
+      console.log(' User disconnected:', data.userName);
       delete this.activeTypers[data.userName];
+      this.removeTypingCursor(data.userName);
       this.updateTypingIndicator();
+    }
+  }
+
+  getCursorPosition() {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const editorRect = document.getElementById('editor').getBoundingClientRect();
+      return {
+        x: rect.left - editorRect.left + 20,
+        y: rect.top - editorRect.top + 20
+      };
+    }
+    return { x: 20, y: 30 };
+  }
+
+  showTypingCursor(userName) {
+    const container = document.getElementById('typingCursorContainer');
+    if (!container) return;
+    
+    if (this.cursorElements[userName]) {
+      this.cursorElements[userName].style.display = 'flex';
+      const pos = this.getCursorPosition();
+      this.cursorElements[userName].style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
+      this.cursorElements[userName].style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
+      return;
+    }
+    
+    const color = this.getUserColor(userName);
+    const initials = this.getInitials(userName);
+    const pos = this.getCursorPosition();
+    
+    const cursor = document.createElement('div');
+    cursor.className = 'typing-cursor';
+    cursor.dataset.user = userName;
+    cursor.innerHTML = `
+      <div class="cursor-avatar" style="background:${color}">${initials}</div>
+      <span class="cursor-name">${userName}</span>
+      <span class="cursor-blink"></span>
+    `;
+    
+    cursor.style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
+    cursor.style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
+    
+    container.appendChild(cursor);
+    this.cursorElements[userName] = cursor;
+    
+    if (this.typingIndicatorTimeout) {
+      clearTimeout(this.typingIndicatorTimeout);
+    }
+    this.typingIndicatorTimeout = setTimeout(() => {
+      this.removeTypingCursor(userName);
+    }, 3000);
+  }
+
+  removeTypingCursor(userName) {
+    if (this.cursorElements[userName]) {
+      this.cursorElements[userName].style.display = 'none';
+      setTimeout(() => {
+        if (this.cursorElements[userName]) {
+          this.cursorElements[userName].remove();
+          delete this.cursorElements[userName];
+        }
+      }, 300);
     }
   }
 
@@ -179,11 +262,11 @@ class EditorState {
     console.log('👥 Active typers:', active);
     
     if (active.length > 0) {
-      indicator.innerHTML = `<i class="fas fa-pen typing-icon"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
-      indicator.classList.add('active');
+      indicator.innerHTML = `<i class="fas fa-pen" style="margin-right:6px;color:#ED7497;"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
+      indicator.className = 'active';
       console.log('✅ Typing indicator shown');
     } else {
-      indicator.classList.remove('active');
+      indicator.className = '';
       console.log('❌ Typing indicator hidden');
     }
   }
@@ -276,9 +359,9 @@ class EditorState {
         type: 'update',
         content: content
       }));
-      console.log('Update sent');
+      console.log(' Update sent');
     } else {
-      console.warn('Cannot send update - WebSocket not open');
+      console.warn(' Cannot send update - WebSocket not open');
     }
   }
 
@@ -654,7 +737,7 @@ document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
 
-console.log('🚀 Starting CollabEdit...');
+console.log(' Starting CollabEdit...');
 
 document.getElementById('modalNicknameInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -683,6 +766,11 @@ editor.addEventListener('input', (e) => {
       editorState.sendTyping();
     }, 2000);
   }
+});
+
+editor.addEventListener('mousemove', () => {
+  if (editorState.isDrawMode) return;
+  // Update cursor positions for typing indicators
 });
 
 editor.addEventListener('keydown', (e) => {
@@ -724,4 +812,4 @@ setInterval(() => {
 
 setTimeout(initCanvas, 100);
 
-console.log('Editor initialized');
+console.log(' Editor initialized');
