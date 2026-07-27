@@ -50,12 +50,10 @@ class EditorState {
     const editor = document.getElementById('editor');
     
     if (data.type === 'sync') {
-      // Initial sync - set content
       editor.innerText = data.content || '';
       this.lastContent = editor.innerText;
       updateStats();
     } else if (data.type === 'update') {
-      // Remote update - only update if different
       const currentText = editor.innerText;
       if (currentText !== data.content) {
         editor.innerText = data.content;
@@ -138,6 +136,16 @@ function redoAction() {
   document.execCommand('redo');
 }
 
+function changeFontFamily() {
+  const font = document.getElementById('fontFamily').value;
+  document.execCommand('fontName', false, font);
+}
+
+function changeFontColor() {
+  const color = document.getElementById('fontColor').value;
+  document.execCommand('foreColor', false, color);
+}
+
 function toggleRoomInput() {
   const input = document.getElementById('roomInput');
   const roomId = document.getElementById('roomId');
@@ -154,7 +162,6 @@ function toggleRoomInput() {
   }
 }
 
-// Initialize
 const roomId = window.location.hash.slice(1) || 'default';
 const editorState = new EditorState();
 document.getElementById('roomId').textContent = roomId;
@@ -162,19 +169,13 @@ document.getElementById('roomId').textContent = roomId;
 editorState.connect(roomId);
 
 const editor = document.getElementById('editor');
-let isLocalChange = false;
 let sendTimeout = null;
 
 editor.addEventListener('input', (e) => {
-  if (isLocalChange) return;
-  
   const currentContent = editor.innerText;
-  
   if (currentContent !== editorState.lastContent) {
     editorState.lastContent = currentContent;
     updateStats();
-    
-    // Send update with debounce
     clearTimeout(sendTimeout);
     sendTimeout = setTimeout(() => {
       editorState.sendUpdate(currentContent);
@@ -193,7 +194,6 @@ window.addEventListener('beforeunload', () => {
   editorState.disconnect();
 });
 
-// Auto-save every 30 seconds
 setInterval(() => {
   saveDocument();
 }, 30000);
