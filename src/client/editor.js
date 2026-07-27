@@ -169,24 +169,28 @@ class EditorState {
 
   updateTypingIndicator() {
     const indicator = document.getElementById('typingIndicator');
+    if (!indicator) return;
+    
     const now = Date.now();
     const active = Object.keys(this.activeTypers).filter(name => {
       return now - this.activeTypers[name] < 3000 && name !== this.userName;
     });
     
-    console.log('Active typers:', active);
+    console.log('👥 Active typers:', active);
     
     if (active.length > 0) {
-      indicator.innerHTML = `<i class="fas fa-pen" style="margin-right:6px;color:#ED7497;"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
-      indicator.className = 'active';
+      indicator.innerHTML = `<i class="fas fa-pen typing-icon"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
+      indicator.classList.add('active');
+      console.log('✅ Typing indicator shown');
     } else {
-      indicator.className = '';
+      indicator.classList.remove('active');
+      console.log('❌ Typing indicator hidden');
     }
   }
 
   sendTyping() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('Sending typing from:', this.userName);
+      console.log('📤 Sending typing from:', this.userName);
       this.ws.send(JSON.stringify({
         type: 'typing',
         userName: this.userName
@@ -650,7 +654,7 @@ document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
 
-console.log('Starting CollabEdit...');
+console.log('🚀 Starting CollabEdit...');
 
 document.getElementById('modalNicknameInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
