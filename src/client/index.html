@@ -6,7 +6,7 @@
   <title>CollabEdit - Realtime Collaborative Editor</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="container">
@@ -14,7 +14,8 @@
       <div class="header-left">
         <h1>CollabEdit</h1>
         <div class="room-info">
-          Room: <span id="roomId">default</span>
+          <i class="fas fa-door-open" style="color:#9CDBD0;font-size:12px;"></i>
+          <span id="roomId">default</span>
           <input type="text" id="roomInput" placeholder="Change room" style="display:none;">
           <button onclick="toggleRoomInput()" title="Edit room name">
             <i class="fas fa-pen"></i>
@@ -22,9 +23,9 @@
         </div>
       </div>
       <div class="header-right">
-        <div class="status" id="status">Connecting...</div>
-        <div class="cursor-info" id="cursorInfo">0 users online</div>
-        <div class="latency" id="latency">0ms</div>
+        <div class="status" id="status"><i class="fas fa-circle" style="font-size:8px;margin-right:6px;"></i>Connecting...</div>
+        <div class="cursor-info"><i class="fas fa-users" style="margin-right:6px;"></i><span id="cursorInfo">0</span> online</div>
+        <div class="latency"><i class="fas fa-bolt" style="margin-right:4px;"></i><span id="latency">0</span>ms</div>
       </div>
     </header>
 
@@ -34,8 +35,8 @@
       <button onclick="formatText('underline')" title="Underline"><u>U</u></button>
       <button onclick="formatText('strikeThrough')" title="Strikethrough"><s>S</s></button>
       <span class="toolbar-separator"></span>
-      <button onclick="undoAction()" title="Undo"><i class="fas fa-undo"></i></button>
-      <button onclick="redoAction()" title="Redo"><i class="fas fa-redo"></i></button>
+      <button onclick="undoAction()" title="Undo"><i class="fas fa-undo-alt"></i></button>
+      <button onclick="redoAction()" title="Redo"><i class="fas fa-redo-alt"></i></button>
       <span class="toolbar-separator"></span>
       <select id="fontFamily" onchange="changeFontFamily()" title="Font family">
         <option value="Arial">Arial</option>
@@ -51,7 +52,7 @@
       <button onclick="toggleDrawMode()" id="drawToggle" title="Toggle drawing mode">
         <i class="fas fa-paint-brush"></i>
       </button>
-      <input type="color" id="drawColor" value="#4CAF50" onchange="changeDrawColor()" title="Draw color">
+      <input type="color" id="drawColor" value="#9CDBD0" onchange="changeDrawColor()" title="Draw color">
       <select id="drawSize" onchange="changeDrawSize()" title="Draw size">
         <option value="2">Small</option>
         <option value="4" selected>Medium</option>
@@ -62,12 +63,12 @@
         <i class="fas fa-eraser"></i>
       </button>
       <button onclick="clearDrawing()" title="Clear all drawings">
-        <i class="fas fa-trash"></i>
+        <i class="fas fa-trash-alt"></i>
       </button>
       <span class="toolbar-separator"></span>
       <button onclick="saveDocument()" title="Save"><i class="fas fa-save"></i></button>
       <button onclick="exportDocument()" title="Export"><i class="fas fa-file-export"></i></button>
-      <button onclick="clearDocument()" title="Clear all"><i class="fas fa-trash-alt"></i></button>
+      <button onclick="clearDocument()" title="Clear all"><i class="fas fa-trash"></i></button>
     </div>
 
     <div id="editor-container">
@@ -77,9 +78,9 @@
 
     <div class="footer">
       <div class="footer-left">
-        <span id="wordCount">0 words</span>
-        <span id="charCount">0 characters</span>
-        <span id="lastSaved">Last saved: Never</span>
+        <span><i class="fas fa-file-word" style="margin-right:4px;"></i><span id="wordCount">0</span> words</span>
+        <span><i class="fas fa-font" style="margin-right:4px;"></i><span id="charCount">0</span> characters</span>
+        <span><i class="fas fa-clock" style="margin-right:4px;"></i><span id="lastSaved">Never saved</span></span>
       </div>
       <div class="footer-right">
         <a href="https://github.com/akramhees" target="_blank" class="github-link">
@@ -87,8 +88,8 @@
           akramhees
         </a>
         <a href="https://github.com/akramhees/collabedit" target="_blank" class="github-link">
-          <i class="fas fa-code-fork"></i>
-          Fork on GitHub
+          <i class="fas fa-code-branch"></i>
+          Fork
         </a>
       </div>
     </div>

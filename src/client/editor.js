@@ -7,7 +7,7 @@ class EditorState {
     this.isDrawing = false;
     this.lastX = 0;
     this.lastY = 0;
-    this.drawColor = '#4CAF50';
+    this.drawColor = '#9CDBD0';
     this.drawSize = 4;
     this.isDrawMode = false;
     this.isRemoteUpdate = false;
@@ -15,37 +15,47 @@ class EditorState {
     this.historyIndex = -1;
     this.isUndoing = false;
     this.isEraser = false;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 20;
   }
 
   connect(roomId = 'default') {
     this.roomId = roomId;
+    
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || 'localhost';
-    const port = window.location.port || 3000;
-    const wsUrl = `${protocol}//${host}:${port}`;
+    const port = window.location.port || (window.location.protocol === 'https:' ? '' : ':3000');
+    const wsUrl = `${protocol}//${host}${port}/${roomId}`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
     
     try {
       this.ws = new WebSocket(wsUrl);
       
       this.ws.onopen = () => {
         this.isConnected = true;
+        this.reconnectAttempts = 0;
         updateStatus(true);
-        console.log('Connected to server');
+        console.log('WebSocket connected successfully');
+        updateCursorInfo(1);
       };
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Received:', data.type);
           this.handleMessage(data);
         } catch (e) {
           console.error('Message parse error:', e);
         }
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (event) => {
         this.isConnected = false;
         updateStatus(false);
-        setTimeout(() => this.connect(this.roomId), 3000);
+        console.log('WebSocket closed:', event.code, event.reason);
+        updateCursorInfo(0);
+        this.reconnect();
       };
 
       this.ws.onerror = (error) => {
@@ -53,7 +63,18 @@ class EditorState {
       };
     } catch (e) {
       console.error('Connection error:', e);
-      setTimeout(() => this.connect(this.roomId), 3000);
+      this.reconnect();
+    }
+  }
+
+  reconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+      console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts})`);
+      setTimeout(() => this.connect(this.roomId), delay);
+    } else {
+      console.error('Max reconnection attempts reached');
     }
   }
 
@@ -83,6 +104,7 @@ class EditorState {
         };
         img.src = data.drawing;
       }
+      console.log('Synced with server');
     } else if (data.type === 'update') {
       this.isRemoteUpdate = true;
       const currentText = editor.innerText;
@@ -90,6 +112,7 @@ class EditorState {
         editor.innerText = data.content;
         this.lastContent = data.content;
         updateStats();
+        console.log('Remote update applied');
       }
       this.isRemoteUpdate = false;
     } else if (data.type === 'draw') {
@@ -97,28 +120,33 @@ class EditorState {
         this.drawRemoteStroke(data.drawData);
         this.drawHistory.push(data.drawData);
         this.historyIndex = this.drawHistory.length - 1;
+        console.log('Remote draw applied');
       }
     } else if (data.type === 'clear_drawing') {
       if (!this.isUndoing) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         this.drawHistory.push({ type: 'clear' });
         this.historyIndex = this.drawHistory.length - 1;
+        console.log('Remote clear applied');
       }
     } else if (data.type === 'undo_draw') {
       this.isUndoing = true;
       this.historyIndex = data.historyIndex;
       this.replayDrawHistory();
       this.isUndoing = false;
+      console.log('Remote undo applied');
     } else if (data.type === 'redo_draw') {
       this.isUndoing = true;
       this.historyIndex = data.historyIndex;
       this.replayDrawHistory();
       this.isUndoing = false;
+      console.log('Remote redo applied');
     } else if (data.type === 'erase_draw') {
       if (!this.isUndoing) {
         this.eraseRemoteStroke(data.eraseData);
         this.drawHistory.push({ type: 'erase', data: data.eraseData });
         this.historyIndex = this.drawHistory.length - 1;
+        console.log('Remote erase applied');
       }
     }
   }
@@ -133,7 +161,6 @@ class EditorState {
       if (entry.type === 'clear') {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       } else if (entry.type === 'erase') {
-        // Skip erase entries during replay - we'll re-apply them differently
         continue;
       } else if (entry.points && entry.points.length > 1) {
         ctx.beginPath();
@@ -141,7 +168,7 @@ class EditorState {
         for (let j = 1; j < entry.points.length; j++) {
           ctx.lineTo(entry.points[j].x, entry.points[j].y);
         }
-        ctx.strokeStyle = entry.color || '#4CAF50';
+        ctx.strokeStyle = entry.color || '#9CDBD0';
         ctx.lineWidth = entry.size || 4;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -149,7 +176,6 @@ class EditorState {
       }
     }
     
-    // Re-apply erase operations
     for (let i = 0; i <= this.historyIndex && i < this.drawHistory.length; i++) {
       const entry = this.drawHistory[i];
       if (entry.type === 'erase' && entry.data) {
@@ -170,7 +196,7 @@ class EditorState {
     for (let i = 1; i < points.length; i++) {
       ctx.lineTo(points[i].x, points[i].y);
     }
-    ctx.strokeStyle = strokeData.color || '#4CAF50';
+    ctx.strokeStyle = strokeData.color || '#9CDBD0';
     ctx.lineWidth = strokeData.size || 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -203,6 +229,9 @@ class EditorState {
         type: 'update',
         content: content
       }));
+      console.log('Update sent');
+    } else {
+      console.warn('Cannot send update - WebSocket not open');
     }
   }
 
@@ -385,8 +414,8 @@ function toggleDrawMode() {
   if (editorState.isDrawMode) {
     canvas.style.display = 'block';
     editor.style.opacity = '0.5';
-    btn.style.color = '#4CAF50';
-    btn.style.borderColor = '#4CAF50';
+    btn.style.color = '#9CDBD0';
+    btn.style.borderColor = '#9CDBD0';
     document.body.style.cursor = 'crosshair';
     document.getElementById('eraserToggle').style.display = 'inline-flex';
   } else {
@@ -406,8 +435,8 @@ function toggleEraser() {
   editorState.isEraser = !editorState.isEraser;
   const btn = document.getElementById('eraserToggle');
   if (editorState.isEraser) {
-    btn.style.color = '#f44336';
-    btn.style.borderColor = '#f44336';
+    btn.style.color = '#ED7497';
+    btn.style.borderColor = '#ED7497';
     document.body.style.cursor = 'not-allowed';
   } else {
     btn.style.color = '';
@@ -444,12 +473,16 @@ function updateStatus(connected) {
   }
 }
 
+function updateCursorInfo(count) {
+  document.getElementById('cursorInfo').textContent = count;
+}
+
 function updateStats() {
   const editor = document.getElementById('editor');
   const text = editor.innerText;
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  document.getElementById('wordCount').textContent = `${words} words`;
-  document.getElementById('charCount').textContent = `${text.length} characters`;
+  document.getElementById('wordCount').textContent = words;
+  document.getElementById('charCount').textContent = text.length;
 }
 
 function saveDocument() {
@@ -458,7 +491,7 @@ function saveDocument() {
   const drawing = canvas.toDataURL();
   localStorage.setItem('doc-backup', content);
   localStorage.setItem('drawing-backup', drawing);
-  document.getElementById('lastSaved').textContent = `Last saved: ${new Date().toLocaleTimeString()}`;
+  document.getElementById('lastSaved').textContent = new Date().toLocaleTimeString();
 }
 
 function exportDocument() {
@@ -557,6 +590,9 @@ function toggleRoomInput() {
 const roomId = window.location.hash.slice(1) || 'default';
 document.getElementById('roomId').textContent = roomId;
 
+console.log('Starting CollabEdit...');
+console.log('Room:', roomId);
+
 editorState.connect(roomId);
 
 const editor = document.getElementById('editor');
@@ -600,4 +636,4 @@ setInterval(() => {
 
 setTimeout(initCanvas, 100);
 
-console.log('Editor initialized with eraser and undo/redo for drawings');
+console.log('Editor initialized');
