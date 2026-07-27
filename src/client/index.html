@@ -9,7 +9,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="container">
+  <!-- Nickname Modal -->
+  <div id="nicknameModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <i class="fas fa-user-astronaut" style="color:#9CDBD0;font-size:32px;"></i>
+        <h2>Welcome to CollabEdit</h2>
+        <p>Enter your nickname to start collaborating</p>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="modalNicknameInput" placeholder="Enter your nickname..." maxlength="20" value="Guest">
+        <button onclick="confirmNickname()" id="modalNicknameBtn">
+          <i class="fas fa-check"></i> Join
+        </button>
+      </div>
+      <div class="modal-footer">
+        <span style="color:#666;font-size:12px;">Other collaborators will see this name</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" id="mainApp" style="display:none;">
     <header>
       <div class="header-left">
         <h1>CollabEdit</h1>
@@ -29,12 +49,6 @@
         <div class="user-badge"><i class="fas fa-user" style="margin-right:4px;"></i><span id="userNameDisplay">Guest</span></div>
       </div>
     </header>
-
-    <div class="nickname-bar">
-      <i class="fas fa-user-pen" style="color:#F8D06E;"></i>
-      <input type="text" id="userNameInput" placeholder="Enter your nickname..." maxlength="20" value="Guest">
-      <button onclick="setNickname()" id="nicknameBtn"><i class="fas fa-check"></i> Set</button>
-    </div>
 
     <div class="toolbar">
       <button onclick="formatText('bold')" title="Bold"><b>B</b></button>

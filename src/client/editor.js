@@ -21,6 +21,7 @@ class EditorState {
     this.typingTimeout = null;
     this.isTyping = false;
     this.activeTypers = {};
+    this.nicknameConfirmed = false;
   }
 
   connect(roomId = 'default') {
@@ -606,15 +607,19 @@ function changeDrawSize() {
   editorState.drawSize = size;
 }
 
-function setNickname() {
-  const input = document.getElementById('userNameInput');
-  const display = document.getElementById('userNameDisplay');
+function confirmNickname() {
+  const input = document.getElementById('modalNicknameInput');
   const name = input.value.trim() || 'Guest';
   editorState.userName = name;
-  display.textContent = name;
+  document.getElementById('userNameDisplay').textContent = name;
   localStorage.setItem('collabedit-username', name);
+  document.getElementById('nicknameModal').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
   editorState.sendUserInfo();
-  input.blur();
+  
+  const roomId = window.location.hash.slice(1) || 'default';
+  document.getElementById('roomId').textContent = roomId;
+  editorState.connect(roomId);
 }
 
 function toggleRoomInput() {
@@ -633,18 +638,18 @@ function toggleRoomInput() {
   }
 }
 
-const roomId = window.location.hash.slice(1) || 'default';
-document.getElementById('roomId').textContent = roomId;
-
 const savedName = localStorage.getItem('collabedit-username') || 'Guest';
-document.getElementById('userNameInput').value = savedName;
+document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
 
 console.log('Starting CollabEdit...');
-console.log('Room:', roomId);
 
-editorState.connect(roomId);
+document.getElementById('modalNicknameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    confirmNickname();
+  }
+});
 
 const editor = document.getElementById('editor');
 let sendTimeout = null;
@@ -695,12 +700,6 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
     e.preventDefault();
     redoAction();
-  }
-});
-
-document.getElementById('userNameInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    setNickname();
   }
 });
 
