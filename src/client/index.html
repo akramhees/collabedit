@@ -51,6 +51,13 @@
       <button onclick="toggleDrawMode()" id="drawToggle" title="Toggle drawing mode">
         <i class="fas fa-paint-brush"></i>
       </button>
+      <input type="color" id="drawColor" value="#4CAF50" onchange="changeDrawColor()" title="Draw color">
+      <select id="drawSize" onchange="changeDrawSize()" title="Draw size">
+        <option value="2">Small</option>
+        <option value="4" selected>Medium</option>
+        <option value="8">Large</option>
+        <option value="14">XL</option>
+      </select>
       <button onclick="clearDrawing()" title="Clear drawing">
         <i class="fas fa-eraser"></i>
       </button>

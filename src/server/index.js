@@ -5,9 +5,12 @@ const { WebSocketServer } = require('ws');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-// Store document state
 let documentContent = '';
+let drawingData = '';
 const clients = new Map();
+const drawHistory = [];
+const maxHistory = 50;
+let historyIndex = -1;
 
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url === '') {
@@ -33,10 +36,11 @@ wss.on('connection', (ws) => {
   
   console.log(`Client ${clientId} connected. Total clients: ${clients.size}`);
   
-  // Send current document content to new client
   ws.send(JSON.stringify({
     type: 'sync',
-    content: documentContent
+    content: documentContent,
+    drawing: drawingData,
+    history: drawHistory
   }));
   
   ws.on('message', (message) => {
@@ -44,18 +48,71 @@ wss.on('connection', (ws) => {
       const data = JSON.parse(message);
       
       if (data.type === 'update') {
-        // Update document content
         documentContent = data.content;
-        
-        // Broadcast to all other clients
-        clients.forEach((client, id) => {
-          if (id !== clientId && client.readyState === 1) {
-            client.send(JSON.stringify({
-              type: 'update',
-              content: documentContent
-            }));
+        broadcast({
+          type: 'update',
+          content: documentContent
+        }, clientId);
+      } else if (data.type === 'draw') {
+        drawingData = data.drawing || '';
+        if (data.drawData) {
+          drawHistory.push(data.drawData);
+          if (drawHistory.length > maxHistory) {
+            drawHistory.shift();
           }
-        });
+          historyIndex = drawHistory.length - 1;
+        }
+        broadcast({
+          type: 'draw',
+          drawData: data.drawData,
+          drawing: drawingData
+        }, clientId);
+      } else if (data.type === 'clear_drawing') {
+        drawingData = '';
+        drawHistory.push({ type: 'clear' });
+        if (drawHistory.length > maxHistory) {
+          drawHistory.shift();
+        }
+        historyIndex = drawHistory.length - 1;
+        broadcast({
+          type: 'clear_drawing'
+        }, clientId);
+      } else if (data.type === 'undo_draw') {
+        if (historyIndex >= 0) {
+          historyIndex--;
+          let state = '';
+          for (let i = 0; i <= historyIndex; i++) {
+            const entry = drawHistory[i];
+            if (entry.type === 'clear') {
+              state = '';
+            } else if (entry.points) {
+              state += JSON.stringify(entry) + '|';
+            }
+          }
+          drawingData = state;
+          broadcast({
+            type: 'undo_draw',
+            historyIndex: historyIndex
+          }, clientId);
+        }
+      } else if (data.type === 'redo_draw') {
+        if (historyIndex < drawHistory.length - 1) {
+          historyIndex++;
+          let state = '';
+          for (let i = 0; i <= historyIndex; i++) {
+            const entry = drawHistory[i];
+            if (entry.type === 'clear') {
+              state = '';
+            } else if (entry.points) {
+              state += JSON.stringify(entry) + '|';
+            }
+          }
+          drawingData = state;
+          broadcast({
+            type: 'redo_draw',
+            historyIndex: historyIndex
+          }, clientId);
+        }
       }
     } catch (e) {
       console.error('Error:', e);
@@ -67,6 +124,14 @@ wss.on('connection', (ws) => {
     console.log(`Client ${clientId} disconnected. Total clients: ${clients.size}`);
   });
 });
+
+function broadcast(data, senderId) {
+  clients.forEach((client, id) => {
+    if (id !== senderId && client.readyState === 1) {
+      client.send(JSON.stringify(data));
+    }
+  });
+}
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);

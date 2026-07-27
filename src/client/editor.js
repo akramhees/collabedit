@@ -4,6 +4,16 @@ class EditorState {
     this.roomId = 'default';
     this.lastContent = '';
     this.ws = null;
+    this.isDrawing = false;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.drawColor = '#4CAF50';
+    this.drawSize = 3;
+    this.isDrawMode = false;
+    this.isRemoteUpdate = false;
+    this.drawHistory = [];
+    this.historyIndex = -1;
+    this.isUndoing = false;
   }
 
   connect(roomId = 'default') {
@@ -48,19 +58,105 @@ class EditorState {
 
   handleMessage(data) {
     const editor = document.getElementById('editor');
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
     
     if (data.type === 'sync') {
+      this.isRemoteUpdate = true;
       editor.innerText = data.content || '';
       this.lastContent = editor.innerText;
+      this.isRemoteUpdate = false;
       updateStats();
+      
+      if (data.history) {
+        this.drawHistory = data.history;
+        this.historyIndex = this.drawHistory.length - 1;
+        this.replayDrawHistory();
+      }
+      
+      if (data.drawing) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = data.drawing;
+      }
     } else if (data.type === 'update') {
+      this.isRemoteUpdate = true;
       const currentText = editor.innerText;
       if (currentText !== data.content) {
         editor.innerText = data.content;
         this.lastContent = data.content;
         updateStats();
       }
+      this.isRemoteUpdate = false;
+    } else if (data.type === 'draw') {
+      if (data.drawData && !this.isUndoing) {
+        this.drawRemoteStroke(data.drawData);
+        this.drawHistory.push(data.drawData);
+        this.historyIndex = this.drawHistory.length - 1;
+      }
+    } else if (data.type === 'clear_drawing') {
+      if (!this.isUndoing) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        this.drawHistory.push({ type: 'clear' });
+        this.historyIndex = this.drawHistory.length - 1;
+      }
+    } else if (data.type === 'undo_draw') {
+      this.isUndoing = true;
+      this.historyIndex = data.historyIndex;
+      this.replayDrawHistory();
+      this.isUndoing = false;
+    } else if (data.type === 'redo_draw') {
+      this.isUndoing = true;
+      this.historyIndex = data.historyIndex;
+      this.replayDrawHistory();
+      this.isUndoing = false;
     }
+  }
+
+  replayDrawHistory() {
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    for (let i = 0; i <= this.historyIndex && i < this.drawHistory.length; i++) {
+      const entry = this.drawHistory[i];
+      if (entry.type === 'clear') {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else if (entry.points && entry.points.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(entry.points[0].x, entry.points[0].y);
+        for (let j = 1; j < entry.points.length; j++) {
+          ctx.lineTo(entry.points[j].x, entry.points[j].y);
+        }
+        ctx.strokeStyle = entry.color || '#4CAF50';
+        ctx.lineWidth = entry.size || 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawRemoteStroke(strokeData) {
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    const points = strokeData.points;
+    
+    if (!points || points.length < 2) return;
+    
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.strokeStyle = strokeData.color || '#4CAF50';
+    ctx.lineWidth = strokeData.size || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
   }
 
   sendUpdate(content) {
@@ -72,6 +168,41 @@ class EditorState {
     }
   }
 
+  sendDrawStroke(points, color, size) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const drawData = { points, color, size };
+      this.ws.send(JSON.stringify({
+        type: 'draw',
+        drawData: drawData,
+        drawing: JSON.stringify(drawData)
+      }));
+    }
+  }
+
+  sendClearDrawing() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'clear_drawing'
+      }));
+    }
+  }
+
+  undoDraw() {
+    if (this.historyIndex >= 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'undo_draw'
+      }));
+    }
+  }
+
+  redoDraw() {
+    if (this.historyIndex < this.drawHistory.length - 1 && this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'redo_draw'
+      }));
+    }
+  }
+
   disconnect() {
     if (this.ws) {
       this.ws.close();
@@ -79,12 +210,7 @@ class EditorState {
   }
 }
 
-let isDrawMode = false;
-let isDrawing = false;
-let lastX = 0;
-let lastY = 0;
-let drawColor = '#4CAF50';
-let drawSize = 3;
+const editorState = new EditorState();
 
 function initCanvas() {
   const canvas = document.getElementById('drawCanvas');
@@ -93,19 +219,11 @@ function initCanvas() {
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
   
-  const ctx = canvas.getContext('2d');
-  ctx.strokeStyle = drawColor;
-  ctx.lineWidth = drawSize;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  
-  // Mouse events
   canvas.addEventListener('mousedown', startDraw);
   canvas.addEventListener('mousemove', draw);
   canvas.addEventListener('mouseup', endDraw);
   canvas.addEventListener('mouseleave', endDraw);
   
-  // Touch events for mobile
   canvas.addEventListener('touchstart', handleTouchStart);
   canvas.addEventListener('touchmove', handleTouchMove);
   canvas.addEventListener('touchend', endDraw);
@@ -127,10 +245,59 @@ function resizeCanvas() {
   img.src = tempData;
 }
 
+function getCanvasCoords(e) {
+  const canvas = document.getElementById('drawCanvas');
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+let currentStroke = [];
+
+function startDraw(e) {
+  if (!editorState.isDrawMode) return;
+  editorState.isDrawing = true;
+  const coords = getCanvasCoords(e);
+  editorState.lastX = coords.x;
+  editorState.lastY = coords.y;
+  currentStroke = [{x: coords.x, y: coords.y}];
+}
+
+function draw(e) {
+  if (!editorState.isDrawing || !editorState.isDrawMode) return;
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  const coords = getCanvasCoords(e);
+  
+  ctx.beginPath();
+  ctx.moveTo(editorState.lastX, editorState.lastY);
+  ctx.lineTo(coords.x, coords.y);
+  ctx.strokeStyle = editorState.drawColor;
+  ctx.lineWidth = editorState.drawSize;
+  ctx.stroke();
+  
+  editorState.lastX = coords.x;
+  editorState.lastY = coords.y;
+  currentStroke.push({x: coords.x, y: coords.y});
+}
+
+function endDraw() {
+  if (editorState.isDrawing && currentStroke.length > 1) {
+    editorState.sendDrawStroke(
+      currentStroke,
+      editorState.drawColor,
+      editorState.drawSize
+    );
+  }
+  editorState.isDrawing = false;
+  currentStroke = [];
+}
+
 function handleTouchStart(e) {
   e.preventDefault();
   const touch = e.touches[0];
-  const rect = e.target.getBoundingClientRect();
   startDraw({
     clientX: touch.clientX,
     clientY: touch.clientY,
@@ -142,7 +309,6 @@ function handleTouchStart(e) {
 function handleTouchMove(e) {
   e.preventDefault();
   const touch = e.touches[0];
-  const rect = e.target.getBoundingClientRect();
   draw({
     clientX: touch.clientX,
     clientY: touch.clientY,
@@ -151,51 +317,13 @@ function handleTouchMove(e) {
   });
 }
 
-function getCanvasCoords(e) {
-  const canvas = document.getElementById('drawCanvas');
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: (e.clientX - rect.left) * (canvas.width / rect.width),
-    y: (e.clientY - rect.top) * (canvas.height / rect.height)
-  };
-}
-
-function startDraw(e) {
-  if (!isDrawMode) return;
-  isDrawing = true;
-  const coords = getCanvasCoords(e);
-  lastX = coords.x;
-  lastY = coords.y;
-}
-
-function draw(e) {
-  if (!isDrawing || !isDrawMode) return;
-  const canvas = document.getElementById('drawCanvas');
-  const ctx = canvas.getContext('2d');
-  const coords = getCanvasCoords(e);
-  
-  ctx.beginPath();
-  ctx.moveTo(lastX, lastY);
-  ctx.lineTo(coords.x, coords.y);
-  ctx.strokeStyle = drawColor;
-  ctx.lineWidth = drawSize;
-  ctx.stroke();
-  
-  lastX = coords.x;
-  lastY = coords.y;
-}
-
-function endDraw() {
-  isDrawing = false;
-}
-
 function toggleDrawMode() {
-  isDrawMode = !isDrawMode;
+  editorState.isDrawMode = !editorState.isDrawMode;
   const canvas = document.getElementById('drawCanvas');
   const editor = document.getElementById('editor');
   const btn = document.getElementById('drawToggle');
   
-  if (isDrawMode) {
+  if (editorState.isDrawMode) {
     canvas.style.display = 'block';
     editor.style.opacity = '0.5';
     btn.style.color = '#4CAF50';
@@ -215,15 +343,16 @@ function clearDrawing() {
     const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    editorState.sendClearDrawing();
   }
 }
 
-function changeDrawColor(color) {
-  drawColor = color;
+function undoDraw() {
+  editorState.undoDraw();
 }
 
-function changeDrawSize(size) {
-  drawSize = size;
+function redoDraw() {
+  editorState.redoDraw();
 }
 
 function updateStatus(connected) {
@@ -290,11 +419,19 @@ function formatText(command) {
 }
 
 function undoAction() {
-  document.execCommand('undo');
+  if (editorState.isDrawMode) {
+    undoDraw();
+  } else {
+    document.execCommand('undo');
+  }
 }
 
 function redoAction() {
-  document.execCommand('redo');
+  if (editorState.isDrawMode) {
+    redoDraw();
+  } else {
+    document.execCommand('redo');
+  }
 }
 
 function changeFontFamily() {
@@ -324,7 +461,6 @@ function toggleRoomInput() {
 }
 
 const roomId = window.location.hash.slice(1) || 'default';
-const editorState = new EditorState();
 document.getElementById('roomId').textContent = roomId;
 
 editorState.connect(roomId);
@@ -333,6 +469,7 @@ const editor = document.getElementById('editor');
 let sendTimeout = null;
 
 editor.addEventListener('input', (e) => {
+  if (editorState.isRemoteUpdate) return;
   const currentContent = editor.innerText;
   if (currentContent !== editorState.lastContent) {
     editorState.lastContent = currentContent;
@@ -349,6 +486,14 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     saveDocument();
   }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    undoAction();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+    e.preventDefault();
+    redoAction();
+  }
 });
 
 window.addEventListener('beforeunload', () => {
@@ -359,7 +504,6 @@ setInterval(() => {
   saveDocument();
 }, 30000);
 
-// Initialize canvas after DOM loads
 setTimeout(initCanvas, 100);
 
-console.log('Editor initialized with drawing support');
+console.log('Editor initialized with undo/redo for drawings');
