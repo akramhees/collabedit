@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CollabEdit - Realtime Collaborative Editor</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-left">
+        <h1>CollabEdit</h1>
+        <div class="room-info">
+          Room: <span id="roomId">default</span>
+          <input type="text" id="roomInput" placeholder="Change room" style="display:none;">
+          <button onclick="toggleRoomInput()">✏️</button>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="status" id="status">Connecting...</div>
+        <div class="cursor-info" id="cursorInfo">0 users online</div>
+        <div class="latency" id="latency">0ms</div>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <button onclick="formatText('bold')"><b>B</b></button>
+      <button onclick="formatText('italic')"><i>I</i></button>
+      <button onclick="formatText('underline')"><u>U</u></button>
+      <button onclick="formatText('strikeThrough')"><s>S</s></button>
+      <span class="toolbar-separator"></span>
+      <button onclick="undoAction()">↩️</button>
+      <button onclick="redoAction()">↪️</button>
+      <span class="toolbar-separator"></span>
+      <button onclick="saveDocument()">Save</button>
+      <button onclick="exportDocument()">Export</button>
+      <button onclick="clearDocument()">Clear</button>
+    </div>
+
+    <div id="editor" contenteditable="true" spellcheck="true"></div>
+
+    <div class="footer">
+      <span id="wordCount">0 words</span>
+      <span id="charCount">0 characters</span>
+      <span id="lastSaved">Last saved: Never</span>
+    </div>
+  </div>
+
+  <script src="/editor.js"></script>
+</body>
+</html>
