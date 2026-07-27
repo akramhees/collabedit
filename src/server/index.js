@@ -11,6 +11,7 @@ const clients = new Map();
 const drawHistory = [];
 const maxHistory = 100;
 let historyIndex = -1;
+const userNames = new Map();
 
 const server = http.createServer((req, res) => {
   if (req.url === '/' || req.url === '') {
@@ -34,10 +35,10 @@ wss.on('connection', (ws, req) => {
   const clientId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
   const ip = req.socket.remoteAddress;
   clients.set(clientId, ws);
+  userNames.set(clientId, 'Guest');
   
-  console.log(`[${new Date().toISOString()}] Client ${clientId} connected from ${ip}. Total clients: ${clients.size}`);
+  console.log(`Client ${clientId} connected from ${ip}. Total clients: ${clients.size}`);
   
-  // Send current state to new client
   ws.send(JSON.stringify({
     type: 'sync',
     content: documentContent,
@@ -49,11 +50,10 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
-      console.log(`[${new Date().toISOString()}] Received from ${clientId}:`, data.type);
+      console.log(`Received from ${clientId}:`, data.type);
       
       if (data.type === 'update') {
         documentContent = data.content;
-        console.log(`[${new Date().toISOString()}] Document updated, broadcasting to ${clients.size - 1} clients`);
         broadcast({
           type: 'update',
           content: documentContent
@@ -109,21 +109,41 @@ wss.on('connection', (ws, req) => {
           type: 'erase_draw',
           eraseData: eraseData
         }, clientId);
+      } else if (data.type === 'user_info') {
+        const userName = data.userName || 'Guest';
+        userNames.set(clientId, userName);
+        broadcast({
+          type: 'user_connected',
+          userName: userName
+        }, clientId);
+        console.log(`User ${userName} connected`);
+      } else if (data.type === 'typing') {
+        const userName = data.userName || 'Guest';
+        broadcast({
+          type: 'user_typing',
+          userName: userName
+        }, clientId);
       } else if (data.type === 'ping') {
         ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
       }
     } catch (e) {
-      console.error(`[${new Date().toISOString()}] Error processing message:`, e);
+      console.error('Error processing message:', e);
     }
   });
   
   ws.on('close', () => {
+    const userName = userNames.get(clientId) || 'Guest';
     clients.delete(clientId);
-    console.log(`[${new Date().toISOString()}] Client ${clientId} disconnected. Total clients: ${clients.size}`);
+    userNames.delete(clientId);
+    broadcast({
+      type: 'user_disconnected',
+      userName: userName
+    }, clientId);
+    console.log(`Client ${clientId} (${userName}) disconnected. Total clients: ${clients.size}`);
   });
   
   ws.on('error', (error) => {
-    console.error(`[${new Date().toISOString()}] WebSocket error for ${clientId}:`, error);
+    console.error('WebSocket error:', error);
   });
 });
 
@@ -135,16 +155,16 @@ function broadcast(data, senderId) {
         client.send(JSON.stringify(data));
         sentCount++;
       } catch (e) {
-        console.error(`[${new Date().toISOString()}] Failed to send to ${id}:`, e);
+        console.error('Failed to send:', e);
       }
     }
   });
   if (sentCount > 0) {
-    console.log(`[${new Date().toISOString()}] Broadcasted to ${sentCount} clients`);
+    console.log(`Broadcasted to ${sentCount} clients`);
   }
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
-  console.log(`[${new Date().toISOString()}] WebSocket server ready for connections`);
+  console.log(`Server running on port ${PORT}`);
+  console.log('WebSocket server ready for connections');
 });
