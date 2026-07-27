@@ -30,12 +30,14 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const clientId = Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  const ip = req.socket.remoteAddress;
   clients.set(clientId, ws);
   
-  console.log(`Client ${clientId} connected. Total clients: ${clients.size}`);
+  console.log(`[${new Date().toISOString()}] Client ${clientId} connected from ${ip}. Total clients: ${clients.size}`);
   
+  // Send current state to new client
   ws.send(JSON.stringify({
     type: 'sync',
     content: documentContent,
@@ -47,9 +49,11 @@ wss.on('connection', (ws) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+      console.log(`[${new Date().toISOString()}] Received from ${clientId}:`, data.type);
       
       if (data.type === 'update') {
         documentContent = data.content;
+        console.log(`[${new Date().toISOString()}] Document updated, broadcasting to ${clients.size - 1} clients`);
         broadcast({
           type: 'update',
           content: documentContent
@@ -105,26 +109,42 @@ wss.on('connection', (ws) => {
           type: 'erase_draw',
           eraseData: eraseData
         }, clientId);
+      } else if (data.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
       }
     } catch (e) {
-      console.error('Error:', e);
+      console.error(`[${new Date().toISOString()}] Error processing message:`, e);
     }
   });
   
   ws.on('close', () => {
     clients.delete(clientId);
-    console.log(`Client ${clientId} disconnected. Total clients: ${clients.size}`);
+    console.log(`[${new Date().toISOString()}] Client ${clientId} disconnected. Total clients: ${clients.size}`);
+  });
+  
+  ws.on('error', (error) => {
+    console.error(`[${new Date().toISOString()}] WebSocket error for ${clientId}:`, error);
   });
 });
 
 function broadcast(data, senderId) {
+  let sentCount = 0;
   clients.forEach((client, id) => {
     if (id !== senderId && client.readyState === 1) {
-      client.send(JSON.stringify(data));
+      try {
+        client.send(JSON.stringify(data));
+        sentCount++;
+      } catch (e) {
+        console.error(`[${new Date().toISOString()}] Failed to send to ${id}:`, e);
+      }
     }
   });
+  if (sentCount > 0) {
+    console.log(`[${new Date().toISOString()}] Broadcasted to ${sentCount} clients`);
+  }
 }
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`[${new Date().toISOString()}] Server running on port ${PORT}`);
+  console.log(`[${new Date().toISOString()}] WebSocket server ready for connections`);
 });
