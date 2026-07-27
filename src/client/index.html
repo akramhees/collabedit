@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>CollabEdit - Realtime Collaborative Editor</title>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -48,12 +48,22 @@
       </select>
       <input type="color" id="fontColor" value="#d4d4d4" onchange="changeFontColor()" title="Font color">
       <span class="toolbar-separator"></span>
+      <button onclick="toggleDrawMode()" id="drawToggle" title="Toggle drawing mode">
+        <i class="fas fa-paint-brush"></i>
+      </button>
+      <button onclick="clearDrawing()" title="Clear drawing">
+        <i class="fas fa-eraser"></i>
+      </button>
+      <span class="toolbar-separator"></span>
       <button onclick="saveDocument()" title="Save"><i class="fas fa-save"></i></button>
       <button onclick="exportDocument()" title="Export"><i class="fas fa-file-export"></i></button>
       <button onclick="clearDocument()" title="Clear"><i class="fas fa-trash"></i></button>
     </div>
 
-    <div id="editor" contenteditable="true" spellcheck="true"></div>
+    <div id="editor-container">
+      <div id="editor" contenteditable="true" spellcheck="true"></div>
+      <canvas id="drawCanvas"></canvas>
+    </div>
 
     <div class="footer">
       <div class="footer-left">
