@@ -4,9 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>CollabEdit - Realtime Collaborative Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
   <div id="nicknameModal" class="modal">
@@ -58,13 +60,12 @@
       <button onclick="redoAction()" title="Redo"><i class="fas fa-redo-alt"></i></button>
       <span class="toolbar-separator"></span>
       <select id="fontFamily" onchange="changeFontFamily()" title="Font family">
+        <option value="Noto Sans">Noto Sans</option>
         <option value="Arial">Arial</option>
         <option value="Georgia">Georgia</option>
         <option value="Times New Roman">Times New Roman</option>
         <option value="Courier New">Courier New</option>
         <option value="Verdana">Verdana</option>
-        <option value="Inter">Inter</option>
-        <option value="JetBrains Mono">JetBrains Mono</option>
       </select>
       <input type="color" id="fontColor" value="#d4d4d4" onchange="changeFontColor()" title="Font color">
       <span class="toolbar-separator"></span>
@@ -92,7 +93,6 @@
 
     <div id="editor-container">
       <div id="editor" contenteditable="true" spellcheck="true"></div>
-      <div id="typingCursorContainer"></div>
       <canvas id="drawCanvas"></canvas>
     </div>
 

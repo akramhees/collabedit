@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: #0a0a0a;
   color: #e0e0e0;
   min-height: 100vh;
@@ -59,11 +59,13 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   margin-bottom: 8px;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .modal-header p {
   color: #888;
   font-size: 14px;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .modal-body {
@@ -81,6 +83,7 @@ body {
   padding: 12px 16px;
   font-size: 15px;
   transition: all 0.3s ease;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .modal-body input:focus {
@@ -103,6 +106,7 @@ body {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .modal-body button:hover {
@@ -117,6 +121,7 @@ body {
 .modal-footer {
   text-align: center;
   padding-top: 8px;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .container {
@@ -159,6 +164,7 @@ header {
   background-clip: text;
   animation: shimmer 4s ease-in-out infinite;
   letter-spacing: -0.5px;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 @keyframes shimmer {
@@ -176,6 +182,7 @@ header {
   font-size: 13px;
   border: 1px solid rgba(157, 219, 208, 0.08);
   transition: all 0.3s ease;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .room-info:hover {
@@ -197,6 +204,7 @@ header {
   font-size: 13px;
   width: 100px;
   transition: all 0.3s ease;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .room-info input:focus {
@@ -225,6 +233,7 @@ header {
   align-items: center;
   gap: 16px;
   font-size: 13px;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .user-badge {
@@ -237,6 +246,7 @@ header {
   color: #ED7497;
   font-size: 12px;
   font-weight: 500;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .status {
@@ -244,6 +254,7 @@ header {
   border-radius: 20px;
   font-weight: 500;
   transition: all 0.3s ease;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .status.connected {
@@ -262,11 +273,12 @@ header {
 .cursor-info {
   color: #F8D06E;
   font-weight: 500;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .latency {
   color: #9CDBD0;
-  font-family: 'Courier New', monospace;
+  font-family: 'Noto Sans', monospace;
   font-size: 12px;
   padding: 4px 10px;
   background: rgba(157, 219, 208, 0.04);
@@ -303,6 +315,7 @@ header {
   align-items: center;
   justify-content: center;
   position: relative;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .toolbar button:hover {
@@ -331,6 +344,7 @@ header {
   cursor: pointer;
   height: 32px;
   transition: all 0.25s ease;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .toolbar select:hover {
@@ -400,7 +414,7 @@ header {
 #editor {
   padding: 24px;
   min-height: 70vh;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-family: 'Noto Sans', 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 16px;
   line-height: 1.9;
   outline: none;
@@ -441,25 +455,16 @@ header {
   color: #ED7497;
 }
 
-#typingCursorContainer {
+#drawCanvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 5;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-@keyframes cursorFade {
-  from { opacity: 0; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  z-index: 2;
+  display: none;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 #typingIndicator {
@@ -478,22 +483,11 @@ header {
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   display: none;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 #typingIndicator.active {
   display: block;
-}
-
-#drawCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2;
-  display: none;
-  cursor: crosshair;
-  touch-action: none;
 }
 
 .footer {
@@ -508,6 +502,7 @@ header {
   font-size: 12px;
   color: #666;
   backdrop-filter: blur(4px);
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .footer-left {
@@ -554,6 +549,7 @@ header {
   border-radius: 8px;
   transition: all 0.25s ease;
   border: 1px solid transparent;
+  font-family: 'Noto Sans', sans-serif;
 }
 
 .github-link:hover {
