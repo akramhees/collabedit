@@ -265,8 +265,11 @@ function initCanvas() {
   canvas.style.touchAction = 'none';
   canvas.style.userSelect = 'none';
   canvas.style.webkitUserSelect = 'none';
+  canvas.style.pointerEvents = 'auto';
+  canvas.style.cursor = 'crosshair';
   
   canvas.onmousedown = function(e) {
+    console.log('mousedown on canvas');
     if (!editorState.isDrawMode) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
@@ -274,6 +277,7 @@ function initCanvas() {
     var scaleY = canvas.height / rect.height;
     var x = (e.clientX - rect.left) * scaleX;
     var y = (e.clientY - rect.top) * scaleY;
+    console.log('Drawing start at:', x, y);
     editorState.isDrawing = true;
     editorState.lastX = x;
     editorState.lastY = y;
@@ -339,6 +343,7 @@ function initCanvas() {
   };
   
   canvas.ontouchstart = function(e) {
+    console.log('touchstart on canvas');
     if (!editorState.isDrawMode) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
@@ -347,6 +352,7 @@ function initCanvas() {
     var scaleY = canvas.height / rect.height;
     var x = (touch.clientX - rect.left) * scaleX;
     var y = (touch.clientY - rect.top) * scaleY;
+    console.log('Touch drawing start at:', x, y);
     editorState.isDrawing = true;
     editorState.lastX = x;
     editorState.lastY = y;
@@ -427,6 +433,7 @@ function toggleDrawMode() {
     btn.style.borderColor = '#9CDBD0';
     document.body.style.cursor = 'crosshair';
     document.getElementById('eraserToggle').style.display = 'inline-flex';
+    console.log('Draw mode enabled');
   } else {
     canvas.style.display = 'none';
     editor.style.opacity = '1';
@@ -437,6 +444,7 @@ function toggleDrawMode() {
     document.getElementById('eraserToggle').style.display = 'none';
     document.getElementById('eraserToggle').style.color = '';
     document.getElementById('eraserToggle').style.borderColor = '';
+    console.log('Draw mode disabled');
   }
 }
 
