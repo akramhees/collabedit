@@ -17,6 +17,10 @@ class EditorState {
     this.isEraser = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 20;
+    this.userName = 'Guest';
+    this.typingTimeout = null;
+    this.isTyping = false;
+    this.activeTypers = {};
   }
 
   connect(roomId = 'default') {
@@ -38,6 +42,7 @@ class EditorState {
         updateStatus(true);
         console.log('WebSocket connected successfully');
         updateCursorInfo(1);
+        this.sendUserInfo();
       };
 
       this.ws.onmessage = (event) => {
@@ -67,14 +72,12 @@ class EditorState {
     }
   }
 
-  reconnect() {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      console.log(`Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts})`);
-      setTimeout(() => this.connect(this.roomId), delay);
-    } else {
-      console.error('Max reconnection attempts reached');
+  sendUserInfo() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'user_info',
+        userName: this.userName
+      }));
     }
   }
 
@@ -148,6 +151,38 @@ class EditorState {
         this.historyIndex = this.drawHistory.length - 1;
         console.log('Remote erase applied');
       }
+    } else if (data.type === 'user_typing') {
+      this.activeTypers[data.userName] = Date.now();
+      this.updateTypingIndicator();
+    } else if (data.type === 'user_connected') {
+      this.updateTypingIndicator();
+    } else if (data.type === 'user_disconnected') {
+      delete this.activeTypers[data.userName];
+      this.updateTypingIndicator();
+    }
+  }
+
+  updateTypingIndicator() {
+    const indicator = document.getElementById('typingIndicator');
+    const now = Date.now();
+    const active = Object.keys(this.activeTypers).filter(name => {
+      return now - this.activeTypers[name] < 3000 && name !== this.userName;
+    });
+    
+    if (active.length > 0) {
+      indicator.innerHTML = `<i class="fas fa-pen" style="margin-right:6px;color:#ED7497;"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
+      indicator.className = 'active';
+    } else {
+      indicator.className = '';
+    }
+  }
+
+  sendTyping() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'typing',
+        userName: this.userName
+      }));
     }
   }
 
@@ -571,6 +606,17 @@ function changeDrawSize() {
   editorState.drawSize = size;
 }
 
+function setNickname() {
+  const input = document.getElementById('userNameInput');
+  const display = document.getElementById('userNameDisplay');
+  const name = input.value.trim() || 'Guest';
+  editorState.userName = name;
+  display.textContent = name;
+  localStorage.setItem('collabedit-username', name);
+  editorState.sendUserInfo();
+  input.blur();
+}
+
 function toggleRoomInput() {
   const input = document.getElementById('roomInput');
   const roomId = document.getElementById('roomId');
@@ -590,6 +636,11 @@ function toggleRoomInput() {
 const roomId = window.location.hash.slice(1) || 'default';
 document.getElementById('roomId').textContent = roomId;
 
+const savedName = localStorage.getItem('collabedit-username') || 'Guest';
+document.getElementById('userNameInput').value = savedName;
+document.getElementById('userNameDisplay').textContent = savedName;
+editorState.userName = savedName;
+
 console.log('Starting CollabEdit...');
 console.log('Room:', roomId);
 
@@ -597,6 +648,7 @@ editorState.connect(roomId);
 
 const editor = document.getElementById('editor');
 let sendTimeout = null;
+let typingTimeout = null;
 
 editor.addEventListener('input', (e) => {
   if (editorState.isRemoteUpdate) return;
@@ -608,6 +660,26 @@ editor.addEventListener('input', (e) => {
     sendTimeout = setTimeout(() => {
       editorState.sendUpdate(currentContent);
     }, 100);
+    
+    clearTimeout(typingTimeout);
+    editorState.sendTyping();
+    typingTimeout = setTimeout(() => {
+      editorState.sendTyping();
+    }, 2000);
+  }
+});
+
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }, 0);
   }
 });
 
@@ -623,6 +695,12 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
     e.preventDefault();
     redoAction();
+  }
+});
+
+document.getElementById('userNameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    setNickname();
   }
 });
 

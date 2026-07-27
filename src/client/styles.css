@@ -31,7 +31,7 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   padding: 16px 24px;
   background: rgba(255,255,255,0.02);
   backdrop-filter: blur(10px);
@@ -120,8 +120,20 @@ header {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   font-size: 13px;
+}
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: rgba(237, 116, 151, 0.1);
+  border-radius: 16px;
+  border: 1px solid rgba(237, 116, 151, 0.15);
+  color: #ED7497;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .status {
@@ -157,6 +169,55 @@ header {
   background: rgba(157, 219, 208, 0.04);
   border-radius: 12px;
   border: 1px solid rgba(157, 219, 208, 0.06);
+}
+
+.nickname-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 10px;
+  border: 1px solid rgba(248, 208, 110, 0.08);
+}
+
+.nickname-bar input {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  color: #e0e0e0;
+  border: 1px solid rgba(248, 208, 110, 0.1);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  max-width: 200px;
+  transition: all 0.3s ease;
+}
+
+.nickname-bar input:focus {
+  outline: none;
+  border-color: #F8D06E;
+  box-shadow: 0 0 20px rgba(248, 208, 110, 0.05);
+}
+
+.nickname-bar button {
+  background: rgba(248, 208, 110, 0.1);
+  color: #F8D06E;
+  border: 1px solid rgba(248, 208, 110, 0.15);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nickname-bar button:hover {
+  background: rgba(248, 208, 110, 0.2);
+  border-color: rgba(248, 208, 110, 0.3);
+  transform: translateY(-1px);
 }
 
 .toolbar {
@@ -326,6 +387,46 @@ header {
   color: #ED7497;
 }
 
+#editor .cursor-end {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: #9CDBD0;
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+#typingIndicator {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  z-index: 10;
+  font-size: 12px;
+  color: #888;
+  background: rgba(0,0,0,0.8);
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(157, 219, 208, 0.1);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#typingIndicator.active {
+  opacity: 1;
+}
+
+#typingIndicator .typing-name {
+  color: #F8D06E;
+  font-weight: 500;
+}
+
 #drawCanvas {
   position: absolute;
   top: 0;
@@ -473,6 +574,15 @@ header {
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 10px;
+  }
+  
+  .nickname-bar {
+    flex-wrap: wrap;
+  }
+  
+  .nickname-bar input {
+    max-width: 100%;
+    flex: 1;
   }
   
   #editor-container {

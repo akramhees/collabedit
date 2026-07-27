@@ -26,8 +26,15 @@
         <div class="status" id="status"><i class="fas fa-circle" style="font-size:8px;margin-right:6px;"></i>Connecting...</div>
         <div class="cursor-info"><i class="fas fa-users" style="margin-right:6px;"></i><span id="cursorInfo">0</span> online</div>
         <div class="latency"><i class="fas fa-bolt" style="margin-right:4px;"></i><span id="latency">0</span>ms</div>
+        <div class="user-badge"><i class="fas fa-user" style="margin-right:4px;"></i><span id="userNameDisplay">Guest</span></div>
       </div>
     </header>
+
+    <div class="nickname-bar">
+      <i class="fas fa-user-pen" style="color:#F8D06E;"></i>
+      <input type="text" id="userNameInput" placeholder="Enter your nickname..." maxlength="20" value="Guest">
+      <button onclick="setNickname()" id="nicknameBtn"><i class="fas fa-check"></i> Set</button>
+    </div>
 
     <div class="toolbar">
       <button onclick="formatText('bold')" title="Bold"><b>B</b></button>
@@ -73,6 +80,7 @@
 
     <div id="editor-container">
       <div id="editor" contenteditable="true" spellcheck="true"></div>
+      <div id="typingIndicator"></div>
       <canvas id="drawCanvas"></canvas>
     </div>
 
