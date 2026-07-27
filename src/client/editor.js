@@ -30,28 +30,28 @@ class EditorState {
     
     try {
       this.ws = new WebSocket(wsUrl);
-      this.ws.onopen = () => {
+      this.ws.onopen = function() {
         this.isConnected = true;
         this.reconnectAttempts = 0;
         updateStatus(true);
         updateCursorInfo(1);
         this.sendUserInfo();
-      };
-      this.ws.onmessage = (event) => {
+      }.bind(this);
+      this.ws.onmessage = function(event) {
         try {
           const data = JSON.parse(event.data);
           this.handleMessage(data);
         } catch (e) {
           console.error('Message parse error:', e);
         }
-      };
-      this.ws.onclose = () => {
+      }.bind(this);
+      this.ws.onclose = function() {
         this.isConnected = false;
         updateStatus(false);
         updateCursorInfo(0);
         this.reconnect();
-      };
-      this.ws.onerror = (error) => {
+      }.bind(this);
+      this.ws.onerror = function(error) {
         console.error('WebSocket error:', error);
       };
     } catch (e) {
@@ -64,7 +64,9 @@ class EditorState {
     if (this.reconnectAttempts < 20) {
       this.reconnectAttempts++;
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      setTimeout(() => this.connect(this.roomId), delay);
+      setTimeout(function() {
+        this.connect(this.roomId);
+      }.bind(this), delay);
     }
   }
 
@@ -95,7 +97,7 @@ class EditorState {
       }
       if (data.drawing) {
         const img = new Image();
-        img.onload = () => {
+        img.onload = function() {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0);
         };
@@ -249,11 +251,11 @@ class EditorState {
   }
 }
 
-const editorState = new EditorState();
+var editorState = new EditorState();
 
 function initCanvas() {
-  const canvas = document.getElementById('drawCanvas');
-  const container = document.getElementById('editor-container');
+  var canvas = document.getElementById('drawCanvas');
+  var container = document.getElementById('editor-container');
   
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
@@ -271,43 +273,33 @@ function initCanvas() {
 }
 
 function resizeCanvas() {
-  const canvas = document.getElementById('drawCanvas');
-  const container = document.getElementById('editor-container');
-  const tempData = canvas.toDataURL();
+  var canvas = document.getElementById('drawCanvas');
+  var container = document.getElementById('editor-container');
+  var tempData = canvas.toDataURL();
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
+  var ctx = canvas.getContext('2d');
+  var img = new Image();
   img.onload = function() { ctx.drawImage(img, 0, 0); };
   img.src = tempData;
 }
 
 function getCanvasCoords(e) {
-  const canvas = document.getElementById('drawCanvas');
-  const rect = canvas.getBoundingClientRect();
+  var canvas = document.getElementById('drawCanvas');
+  var rect = canvas.getBoundingClientRect();
   return {
     x: (e.clientX - rect.left) * (canvas.width / rect.width),
     y: (e.clientY - rect.top) * (canvas.height / rect.height)
   };
 }
 
-function getTouchCoords(e) {
-  const canvas = document.getElementById('drawCanvas');
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  return {
-    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
-    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
-  };
-}
-
-let currentStroke = [];
+var currentStroke = [];
 
 function startDraw(e) {
   if (!editorState.isDrawMode) return;
   e.preventDefault();
   editorState.isDrawing = true;
-  const coords = getCanvasCoords(e);
+  var coords = getCanvasCoords(e);
   editorState.lastX = coords.x;
   editorState.lastY = coords.y;
   currentStroke = [{x: coords.x, y: coords.y}];
@@ -316,9 +308,9 @@ function startDraw(e) {
 function draw(e) {
   if (!editorState.isDrawing || !editorState.isDrawMode) return;
   e.preventDefault();
-  const canvas = document.getElementById('drawCanvas');
-  const ctx = canvas.getContext('2d');
-  const coords = getCanvasCoords(e);
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  var coords = getCanvasCoords(e);
   
   if (editorState.isEraser) {
     ctx.globalCompositeOperation = 'destination-out';
@@ -359,10 +351,10 @@ function endDraw(e) {
 function handleTouchStart(e) {
   if (!editorState.isDrawMode) return;
   e.preventDefault();
-  const canvas = document.getElementById('drawCanvas');
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  const coords = {
+  var canvas = document.getElementById('drawCanvas');
+  var rect = canvas.getBoundingClientRect();
+  var touch = e.touches[0];
+  var coords = {
     x: (touch.clientX - rect.left) * (canvas.width / rect.width),
     y: (touch.clientY - rect.top) * (canvas.height / rect.height)
   };
@@ -375,11 +367,11 @@ function handleTouchStart(e) {
 function handleTouchMove(e) {
   if (!editorState.isDrawing || !editorState.isDrawMode) return;
   e.preventDefault();
-  const canvas = document.getElementById('drawCanvas');
-  const ctx = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  const coords = {
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  var rect = canvas.getBoundingClientRect();
+  var touch = e.touches[0];
+  var coords = {
     x: (touch.clientX - rect.left) * (canvas.width / rect.width),
     y: (touch.clientY - rect.top) * (canvas.height / rect.height)
   };
@@ -422,9 +414,9 @@ function handleTouchEnd(e) {
 
 function toggleDrawMode() {
   editorState.isDrawMode = !editorState.isDrawMode;
-  const canvas = document.getElementById('drawCanvas');
-  const editor = document.getElementById('editor');
-  const btn = document.getElementById('drawToggle');
+  var canvas = document.getElementById('drawCanvas');
+  var editor = document.getElementById('editor');
+  var btn = document.getElementById('drawToggle');
   if (editorState.isDrawMode) {
     canvas.style.display = 'block';
     editor.style.opacity = '0.5';
@@ -447,7 +439,7 @@ function toggleDrawMode() {
 
 function toggleEraser() {
   editorState.isEraser = !editorState.isEraser;
-  const btn = document.getElementById('eraserToggle');
+  var btn = document.getElementById('eraserToggle');
   if (editorState.isEraser) {
     btn.style.color = '#ED7497';
     btn.style.borderColor = '#ED7497';
@@ -461,8 +453,8 @@ function toggleEraser() {
 
 function clearDrawing() {
   if (confirm('Clear all drawings?')) {
-    const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
+    var canvas = document.getElementById('drawCanvas');
+    var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     editorState.sendClearDrawing();
   }
@@ -472,7 +464,7 @@ function undoDraw() { editorState.undoDraw(); }
 function redoDraw() { editorState.redoDraw(); }
 
 function updateStatus(connected) {
-  const status = document.getElementById('status');
+  var status = document.getElementById('status');
   if (connected) {
     status.textContent = 'Connected';
     status.className = 'status connected';
@@ -487,27 +479,27 @@ function updateCursorInfo(count) {
 }
 
 function updateStats() {
-  const editor = document.getElementById('editor');
-  const text = editor.innerText;
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var editor = document.getElementById('editor');
+  var text = editor.innerText;
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
   document.getElementById('wordCount').textContent = words;
   document.getElementById('charCount').textContent = text.length;
 }
 
 function saveDocument() {
-  const content = document.getElementById('editor').innerHTML;
-  const canvas = document.getElementById('drawCanvas');
-  const drawing = canvas.toDataURL();
+  var content = document.getElementById('editor').innerHTML;
+  var canvas = document.getElementById('drawCanvas');
+  var drawing = canvas.toDataURL();
   localStorage.setItem('doc-backup', content);
   localStorage.setItem('drawing-backup', drawing);
   document.getElementById('lastSaved').textContent = new Date().toLocaleTimeString();
 }
 
 function exportDocument() {
-  const content = document.getElementById('editor').innerHTML;
-  const canvas = document.getElementById('drawCanvas');
-  const drawing = canvas.toDataURL();
-  const blob = new Blob([`
+  var content = document.getElementById('editor').innerHTML;
+  var canvas = document.getElementById('drawCanvas');
+  var drawing = canvas.toDataURL();
+  var blob = new Blob([`
     <html>
       <head><title>CollabEdit Document</title></head>
       <body>
@@ -516,8 +508,8 @@ function exportDocument() {
       </body>
     </html>
   `], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
   a.href = url;
   a.download = 'document-' + Date.now() + '.html';
   a.click();
@@ -526,7 +518,7 @@ function exportDocument() {
 
 function clearDocument() {
   if (confirm('Clear document and drawings?')) {
-    const editor = document.getElementById('editor');
+    var editor = document.getElementById('editor');
     editor.innerText = '';
     clearDrawing();
     editorState.sendUpdate('');
@@ -555,17 +547,17 @@ function redoAction() {
 }
 
 function changeFontFamily() {
-  const font = document.getElementById('fontFamily').value;
+  var font = document.getElementById('fontFamily').value;
   document.execCommand('fontName', false, font);
 }
 
 function changeFontColor() {
-  const color = document.getElementById('fontColor').value;
+  var color = document.getElementById('fontColor').value;
   document.execCommand('foreColor', false, color);
 }
 
 function changeDrawColor() {
-  const color = document.getElementById('drawColor').value;
+  var color = document.getElementById('drawColor').value;
   editorState.drawColor = color;
   if (editorState.isEraser) {
     editorState.isEraser = false;
@@ -576,41 +568,41 @@ function changeDrawColor() {
 }
 
 function changeDrawSize() {
-  const size = parseInt(document.getElementById('drawSize').value);
+  var size = parseInt(document.getElementById('drawSize').value);
   editorState.drawSize = size;
 }
 
 function confirmNickname() {
-  const input = document.getElementById('modalNicknameInput');
-  const name = input.value.trim() || 'Guest';
+  var input = document.getElementById('modalNicknameInput');
+  var name = input.value.trim() || 'Guest';
   editorState.userName = name;
   document.getElementById('userNameDisplay').textContent = name;
   localStorage.setItem('collabedit-username', name);
   document.getElementById('nicknameModal').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
   editorState.sendUserInfo();
-  const roomId = window.location.hash.slice(1) || 'default';
+  var roomId = window.location.hash.slice(1) || 'default';
   document.getElementById('roomId').textContent = roomId;
   editorState.connect(roomId);
 }
 
 function toggleRoomInput() {
-  const input = document.getElementById('roomInput');
-  const roomId = document.getElementById('roomId');
+  var input = document.getElementById('roomInput');
+  var roomId = document.getElementById('roomId');
   if (input.style.display === 'none') {
     input.style.display = 'inline';
     input.value = roomId.textContent;
     input.focus();
   } else {
     input.style.display = 'none';
-    const newRoom = input.value.trim() || 'default';
+    var newRoom = input.value.trim() || 'default';
     roomId.textContent = newRoom;
     editorState.disconnect();
     editorState.connect(newRoom);
   }
 }
 
-const savedName = localStorage.getItem('collabedit-username') || 'Guest';
+var savedName = localStorage.getItem('collabedit-username') || 'Guest';
 document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
@@ -619,12 +611,12 @@ document.getElementById('modalNicknameInput').addEventListener('keydown', functi
   if (e.key === 'Enter') confirmNickname();
 });
 
-const editor = document.getElementById('editor');
-let sendTimeout = null;
+var editor = document.getElementById('editor');
+var sendTimeout = null;
 
 editor.addEventListener('input', function(e) {
   if (editorState.isRemoteUpdate) return;
-  const currentContent = editor.innerText;
+  var currentContent = editor.innerText;
   if (currentContent !== editorState.lastContent) {
     editorState.lastContent = currentContent;
     updateStats();
@@ -638,9 +630,9 @@ editor.addEventListener('input', function(e) {
 editor.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') {
     setTimeout(function() {
-      const selection = window.getSelection();
+      var selection = window.getSelection();
       if (selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
+        var range = selection.getRangeAt(0);
         range.collapse(false);
         selection.removeAllRanges();
         selection.addRange(range);
