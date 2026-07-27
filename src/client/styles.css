@@ -47,7 +47,7 @@ header {
 .header-left h1 {
   font-size: 24px;
   font-weight: 700;
-  background: linear-gradient(135deg, #4CAF50, #2196F3);
+  background: linear-gradient(135deg, #b00b69, #e01a8a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -77,7 +77,7 @@ header {
 .room-info button {
   background: transparent;
   border: none;
-  color: #888;
+  color: #b00b69;
   cursor: pointer;
   font-size: 14px;
   padding: 0 4px;
@@ -85,7 +85,7 @@ header {
 }
 
 .room-info button:hover {
-  color: #e0e0e0;
+  color: #e01a8a;
 }
 
 .header-right {
@@ -102,8 +102,8 @@ header {
 }
 
 .status.connected {
-  color: #4CAF50;
-  background: rgba(76, 175, 80, 0.1);
+  color: #b00b69;
+  background: rgba(176, 11, 105, 0.1);
 }
 
 .status.disconnected {
@@ -112,11 +112,11 @@ header {
 }
 
 .cursor-info {
-  color: #888;
+  color: #b00b69;
 }
 
 .latency {
-  color: #4CAF50;
+  color: #b00b69;
   font-family: 'Courier New', monospace;
   font-size: 13px;
 }
@@ -135,7 +135,7 @@ header {
 
 .toolbar button {
   background: transparent;
-  color: #ccc;
+  color: #b00b69;
   border: 1px solid transparent;
   padding: 4px 10px;
   border-radius: 4px;
@@ -150,18 +150,19 @@ header {
 }
 
 .toolbar button:hover {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  background: #2a2a2a;
+  border-color: #b00b69;
+  color: #e01a8a;
 }
 
 .toolbar button:active {
-  background: #4a4a4a;
+  background: #3a3a3a;
   transform: scale(0.95);
 }
 
 .toolbar select {
   background: #2a2a2a;
-  color: #ccc;
+  color: #b00b69;
   border: 1px solid #3a3a3a;
   border-radius: 4px;
   padding: 4px 8px;
@@ -171,13 +172,18 @@ header {
 }
 
 .toolbar select:hover {
-  border-color: #4a4a4a;
+  border-color: #b00b69;
+}
+
+.toolbar select option {
+  background: #1a1a1a;
+  color: #e0e0e0;
 }
 
 .toolbar input[type="color"] {
   width: 30px;
   height: 30px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid #b00b69;
   border-radius: 4px;
   padding: 2px;
   cursor: pointer;
@@ -225,8 +231,8 @@ header {
 }
 
 #editor:focus {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+  border-color: #b00b69;
+  box-shadow: 0 0 0 2px rgba(176, 11, 105, 0.2);
 }
 
 #editor:empty::before {
@@ -240,20 +246,20 @@ header {
 }
 
 #editor b, #editor strong {
-  color: #4CAF50;
+  color: #b00b69;
 }
 
 #editor i, #editor em {
-  color: #2196F3;
+  color: #b00b69;
 }
 
 #editor u {
-  color: #FFC107;
-  text-decoration-color: #FFC107;
+  color: #b00b69;
+  text-decoration-color: #b00b69;
 }
 
 #editor s {
-  color: #f44336;
+  color: #b00b69;
 }
 
 #drawCanvas {
@@ -292,6 +298,18 @@ header {
   gap: 5px;
 }
 
+.footer-left span:first-child {
+  color: #b00b69;
+}
+
+.footer-left span:nth-child(2) {
+  color: #b00b69;
+}
+
+.footer-left span:last-child {
+  color: #666;
+}
+
 .footer-right {
   display: flex;
   align-items: center;
@@ -302,7 +320,7 @@ header {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #888;
+  color: #b00b69;
   text-decoration: none;
   font-size: 13px;
   padding: 4px 10px;
@@ -311,7 +329,7 @@ header {
 }
 
 .github-link:hover {
-  color: #fff;
+  color: #e01a8a;
   background: #2a2a2a;
 }
 
@@ -330,12 +348,12 @@ header {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
+  background: #b00b69;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
+  background: #e01a8a;
 }
 
 @media (max-width: 768px) {
@@ -419,6 +437,6 @@ header {
 }
 
 ::selection {
-  background: #4CAF50;
+  background: #b00b69;
   color: #fff;
 }
