@@ -1,17 +1,13 @@
 {
   "name": "collabedit",
   "version": "1.0.0",
-  "description": "High-performance real-time collaborative text editor",
+  "description": "Real-time collaborative text editor",
   "main": "src/server/index.js",
   "scripts": {
-    "start": "node src/server/index.js",
-    "dev": "nodemon src/server/index.js"
+    "start": "node src/server/index.js"
   },
   "dependencies": {
-    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.30.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.0"
+    "ws": "^8.14.2"
   },
   "engines": {
     "node": "18.x"
