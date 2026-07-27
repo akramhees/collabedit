@@ -262,13 +262,18 @@ function initCanvas() {
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
   
-  // Mouse events
+  canvas.style.touchAction = 'none';
+  canvas.style.userSelect = 'none';
+  canvas.style.webkitUserSelect = 'none';
+  
   canvas.onmousedown = function(e) {
     if (!editorState.isDrawMode) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var x = (e.clientX - rect.left) * scaleX;
+    var y = (e.clientY - rect.top) * scaleY;
     editorState.isDrawing = true;
     editorState.lastX = x;
     editorState.lastY = y;
@@ -279,8 +284,10 @@ function initCanvas() {
     if (!editorState.isDrawing || !editorState.isDrawMode) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
-    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var x = (e.clientX - rect.left) * scaleX;
+    var y = (e.clientY - rect.top) * scaleY;
     var ctx = canvas.getContext('2d');
     
     if (editorState.isEraser) {
@@ -331,14 +338,15 @@ function initCanvas() {
     currentStroke = [];
   };
   
-  // Touch events
   canvas.ontouchstart = function(e) {
     if (!editorState.isDrawMode) return;
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
     var touch = e.touches[0];
-    var x = (touch.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var x = (touch.clientX - rect.left) * scaleX;
+    var y = (touch.clientY - rect.top) * scaleY;
     editorState.isDrawing = true;
     editorState.lastX = x;
     editorState.lastY = y;
@@ -350,8 +358,10 @@ function initCanvas() {
     e.preventDefault();
     var rect = canvas.getBoundingClientRect();
     var touch = e.touches[0];
-    var x = (touch.clientX - rect.left) * (canvas.width / rect.width);
-    var y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    var x = (touch.clientX - rect.left) * scaleX;
+    var y = (touch.clientY - rect.top) * scaleY;
     var ctx = canvas.getContext('2d');
     
     if (editorState.isEraser) {
