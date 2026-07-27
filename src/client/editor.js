@@ -1,257 +1,259 @@
-class EditorState {
-  constructor() {
-    this.isConnected = false;
-    this.roomId = 'default';
-    this.lastContent = '';
-    this.ws = null;
-    this.isDrawing = false;
-    this.lastX = 0;
-    this.lastY = 0;
-    this.drawColor = '#9CDBD0';
-    this.drawSize = 4;
-    this.isDrawMode = false;
-    this.isRemoteUpdate = false;
-    this.drawHistory = [];
-    this.historyIndex = -1;
-    this.isUndoing = false;
-    this.isEraser = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 20;
-    this.userName = 'Guest';
-  }
+var editorState = {
+  isConnected: false,
+  roomId: 'default',
+  lastContent: '',
+  ws: null,
+  isDrawing: false,
+  lastX: 0,
+  lastY: 0,
+  drawColor: '#9CDBD0',
+  drawSize: 4,
+  isDrawMode: false,
+  isRemoteUpdate: false,
+  drawHistory: [],
+  historyIndex: -1,
+  isUndoing: false,
+  isEraser: false,
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 20,
+  userName: 'Guest',
+  canvas: null,
+  ctx: null
+};
 
-  connect(roomId = 'default') {
-    this.roomId = roomId;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
-    const port = window.location.port || (window.location.protocol === 'https:' ? '' : ':3000');
-    const wsUrl = protocol + '//' + host + port + '/' + roomId;
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    try {
-      this.ws = new WebSocket(wsUrl);
-      this.ws.onopen = function() {
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        updateStatus(true);
-        updateCursorInfo(1);
-        this.sendUserInfo();
-      }.bind(this);
-      this.ws.onmessage = function(event) {
-        try {
-          const data = JSON.parse(event.data);
-          this.handleMessage(data);
-        } catch (e) {
-          console.error('Message parse error:', e);
-        }
-      }.bind(this);
-      this.ws.onclose = function() {
-        this.isConnected = false;
-        updateStatus(false);
-        updateCursorInfo(0);
-        this.reconnect();
-      }.bind(this);
-      this.ws.onerror = function(error) {
-        console.error('WebSocket error:', error);
-      };
-    } catch (e) {
-      console.error('Connection error:', e);
-      this.reconnect();
-    }
-  }
+var currentStroke = [];
 
-  reconnect() {
-    if (this.reconnectAttempts < 20) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      setTimeout(function() {
-        this.connect(this.roomId);
-      }.bind(this), delay);
-    }
-  }
-
-  sendUserInfo() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: 'user_info',
-        userName: this.userName
-      }));
-    }
-  }
-
-  handleMessage(data) {
-    const editor = document.getElementById('editor');
-    const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    if (data.type === 'sync') {
-      this.isRemoteUpdate = true;
-      editor.innerText = data.content || '';
-      this.lastContent = editor.innerText;
-      this.isRemoteUpdate = false;
-      updateStats();
-      if (data.history) {
-        this.drawHistory = data.history;
-        this.historyIndex = data.historyIndex !== undefined ? data.historyIndex : this.drawHistory.length - 1;
-        this.replayDrawHistory();
+function connect(roomId) {
+  roomId = roomId || 'default';
+  editorState.roomId = roomId;
+  
+  var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var host = window.location.hostname || 'localhost';
+  var port = window.location.port || (window.location.protocol === 'https:' ? '' : ':3000');
+  var wsUrl = protocol + '//' + host + port + '/' + roomId;
+  console.log('Connecting to WebSocket:', wsUrl);
+  
+  try {
+    editorState.ws = new WebSocket(wsUrl);
+    editorState.ws.onopen = function() {
+      editorState.isConnected = true;
+      editorState.reconnectAttempts = 0;
+      updateStatus(true);
+      updateCursorInfo(1);
+      sendUserInfo();
+    };
+    editorState.ws.onmessage = function(event) {
+      try {
+        var data = JSON.parse(event.data);
+        handleMessage(data);
+      } catch (e) {
+        console.error('Message parse error:', e);
       }
-      if (data.drawing) {
-        const img = new Image();
-        img.onload = function() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = data.drawing;
-      }
-    } else if (data.type === 'update') {
-      this.isRemoteUpdate = true;
-      const currentText = editor.innerText;
-      if (currentText !== data.content) {
-        editor.innerText = data.content;
-        this.lastContent = data.content;
-        updateStats();
-      }
-      this.isRemoteUpdate = false;
-    } else if (data.type === 'draw') {
-      if (data.drawData && !this.isUndoing) {
-        this.drawRemoteStroke(data.drawData);
-        this.drawHistory.push(data.drawData);
-        this.historyIndex = this.drawHistory.length - 1;
-      }
-    } else if (data.type === 'clear_drawing') {
-      if (!this.isUndoing) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        this.drawHistory.push({ type: 'clear' });
-        this.historyIndex = this.drawHistory.length - 1;
-      }
-    } else if (data.type === 'undo_draw') {
-      this.isUndoing = true;
-      this.historyIndex = data.historyIndex;
-      this.replayDrawHistory();
-      this.isUndoing = false;
-    } else if (data.type === 'redo_draw') {
-      this.isUndoing = true;
-      this.historyIndex = data.historyIndex;
-      this.replayDrawHistory();
-      this.isUndoing = false;
-    } else if (data.type === 'erase_draw') {
-      if (!this.isUndoing) {
-        this.eraseRemoteStroke(data.eraseData);
-        this.drawHistory.push({ type: 'erase', data: data.eraseData });
-        this.historyIndex = this.drawHistory.length - 1;
-      }
-    }
-  }
-
-  replayDrawHistory() {
-    const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i <= this.historyIndex && i < this.drawHistory.length; i++) {
-      const entry = this.drawHistory[i];
-      if (entry.type === 'clear') {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      } else if (entry.type === 'erase') {
-        continue;
-      } else if (entry.points && entry.points.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(entry.points[0].x, entry.points[0].y);
-        for (let j = 1; j < entry.points.length; j++) {
-          ctx.lineTo(entry.points[j].x, entry.points[j].y);
-        }
-        ctx.strokeStyle = entry.color || '#9CDBD0';
-        ctx.lineWidth = entry.size || 4;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-      }
-    }
-    for (let i = 0; i <= this.historyIndex && i < this.drawHistory.length; i++) {
-      const entry = this.drawHistory[i];
-      if (entry.type === 'erase' && entry.data) {
-        this.eraseRemoteStroke(entry.data);
-      }
-    }
-  }
-
-  drawRemoteStroke(strokeData) {
-    const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
-    const points = strokeData.points;
-    if (!points || points.length < 2) return;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.strokeStyle = strokeData.color || '#9CDBD0';
-    ctx.lineWidth = strokeData.size || 4;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-  }
-
-  eraseRemoteStroke(eraseData) {
-    const canvas = document.getElementById('drawCanvas');
-    const ctx = canvas.getContext('2d');
-    const points = eraseData.points;
-    if (!points || points.length < 2) return;
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
-    }
-    ctx.lineWidth = eraseData.size || 20;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
-  }
-
-  sendUpdate(content) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'update', content: content }));
-    }
-  }
-
-  sendDrawStroke(points, color, size) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const drawData = { points: points, color: color, size: size };
-      this.ws.send(JSON.stringify({ type: 'draw', drawData: drawData, drawing: JSON.stringify(drawData) }));
-    }
-  }
-
-  sendEraseStroke(points, size) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'erase_draw', eraseData: { points: points, size: size } }));
-    }
-  }
-
-  sendClearDrawing() {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'clear_drawing' }));
-    }
-  }
-
-  undoDraw() {
-    if (this.historyIndex >= 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'undo_draw' }));
-    }
-  }
-
-  redoDraw() {
-    if (this.historyIndex < this.drawHistory.length - 1 && this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'redo_draw' }));
-    }
-  }
-
-  disconnect() {
-    if (this.ws) this.ws.close();
+    };
+    editorState.ws.onclose = function() {
+      editorState.isConnected = false;
+      updateStatus(false);
+      updateCursorInfo(0);
+      reconnect();
+    };
+    editorState.ws.onerror = function(error) {
+      console.error('WebSocket error:', error);
+    };
+  } catch (e) {
+    console.error('Connection error:', e);
+    reconnect();
   }
 }
 
-var editorState = new EditorState();
+function reconnect() {
+  if (editorState.reconnectAttempts < 20) {
+    editorState.reconnectAttempts++;
+    var delay = Math.min(1000 * Math.pow(2, editorState.reconnectAttempts), 30000);
+    setTimeout(function() {
+      connect(editorState.roomId);
+    }, delay);
+  }
+}
+
+function sendUserInfo() {
+  if (editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({
+      type: 'user_info',
+      userName: editorState.userName
+    }));
+  }
+}
+
+function handleMessage(data) {
+  var editor = document.getElementById('editor');
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  
+  if (data.type === 'sync') {
+    editorState.isRemoteUpdate = true;
+    editor.innerText = data.content || '';
+    editorState.lastContent = editor.innerText;
+    editorState.isRemoteUpdate = false;
+    updateStats();
+    if (data.history) {
+      editorState.drawHistory = data.history;
+      editorState.historyIndex = data.historyIndex !== undefined ? data.historyIndex : editorState.drawHistory.length - 1;
+      replayDrawHistory();
+    }
+    if (data.drawing) {
+      var img = new Image();
+      img.onload = function() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+      };
+      img.src = data.drawing;
+    }
+  } else if (data.type === 'update') {
+    editorState.isRemoteUpdate = true;
+    var currentText = editor.innerText;
+    if (currentText !== data.content) {
+      editor.innerText = data.content;
+      editorState.lastContent = data.content;
+      updateStats();
+    }
+    editorState.isRemoteUpdate = false;
+  } else if (data.type === 'draw') {
+    if (data.drawData && !editorState.isUndoing) {
+      drawRemoteStroke(data.drawData);
+      editorState.drawHistory.push(data.drawData);
+      editorState.historyIndex = editorState.drawHistory.length - 1;
+    }
+  } else if (data.type === 'clear_drawing') {
+    if (!editorState.isUndoing) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      editorState.drawHistory.push({ type: 'clear' });
+      editorState.historyIndex = editorState.drawHistory.length - 1;
+    }
+  } else if (data.type === 'undo_draw') {
+    editorState.isUndoing = true;
+    editorState.historyIndex = data.historyIndex;
+    replayDrawHistory();
+    editorState.isUndoing = false;
+  } else if (data.type === 'redo_draw') {
+    editorState.isUndoing = true;
+    editorState.historyIndex = data.historyIndex;
+    replayDrawHistory();
+    editorState.isUndoing = false;
+  } else if (data.type === 'erase_draw') {
+    if (!editorState.isUndoing) {
+      eraseRemoteStroke(data.eraseData);
+      editorState.drawHistory.push({ type: 'erase', data: data.eraseData });
+      editorState.historyIndex = editorState.drawHistory.length - 1;
+    }
+  }
+}
+
+function replayDrawHistory() {
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (var i = 0; i <= editorState.historyIndex && i < editorState.drawHistory.length; i++) {
+    var entry = editorState.drawHistory[i];
+    if (entry.type === 'clear') {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } else if (entry.type === 'erase') {
+      continue;
+    } else if (entry.points && entry.points.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(entry.points[0].x, entry.points[0].y);
+      for (var j = 1; j < entry.points.length; j++) {
+        ctx.lineTo(entry.points[j].x, entry.points[j].y);
+      }
+      ctx.strokeStyle = entry.color || '#9CDBD0';
+      ctx.lineWidth = entry.size || 4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+  }
+  for (var k = 0; k <= editorState.historyIndex && k < editorState.drawHistory.length; k++) {
+    var entry2 = editorState.drawHistory[k];
+    if (entry2.type === 'erase' && entry2.data) {
+      eraseRemoteStroke(entry2.data);
+    }
+  }
+}
+
+function drawRemoteStroke(strokeData) {
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  var points = strokeData.points;
+  if (!points || points.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (var i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.strokeStyle = strokeData.color || '#9CDBD0';
+  ctx.lineWidth = strokeData.size || 4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function eraseRemoteStroke(eraseData) {
+  var canvas = document.getElementById('drawCanvas');
+  var ctx = canvas.getContext('2d');
+  var points = eraseData.points;
+  if (!points || points.length < 2) return;
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (var i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x, points[i].y);
+  }
+  ctx.lineWidth = eraseData.size || 20;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function sendUpdate(content) {
+  if (editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({ type: 'update', content: content }));
+  }
+}
+
+function sendDrawStroke(points, color, size) {
+  if (editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    var drawData = { points: points, color: color, size: size };
+    editorState.ws.send(JSON.stringify({ type: 'draw', drawData: drawData, drawing: JSON.stringify(drawData) }));
+  }
+}
+
+function sendEraseStroke(points, size) {
+  if (editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({ type: 'erase_draw', eraseData: { points: points, size: size } }));
+  }
+}
+
+function sendClearDrawing() {
+  if (editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({ type: 'clear_drawing' }));
+  }
+}
+
+function undoDraw() {
+  if (editorState.historyIndex >= 0 && editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({ type: 'undo_draw' }));
+  }
+}
+
+function redoDraw() {
+  if (editorState.historyIndex < editorState.drawHistory.length - 1 && editorState.ws && editorState.ws.readyState === WebSocket.OPEN) {
+    editorState.ws.send(JSON.stringify({ type: 'redo_draw' }));
+  }
+}
+
+function disconnect() {
+  if (editorState.ws) editorState.ws.close();
+}
 
 function initCanvas() {
   var canvas = document.getElementById('drawCanvas');
@@ -260,14 +262,133 @@ function initCanvas() {
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
   
-  canvas.addEventListener('mousedown', startDraw);
-  canvas.addEventListener('mousemove', draw);
-  canvas.addEventListener('mouseup', endDraw);
-  canvas.addEventListener('mouseleave', endDraw);
+  // Mouse events
+  canvas.onmousedown = function(e) {
+    if (!editorState.isDrawMode) return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    editorState.isDrawing = true;
+    editorState.lastX = x;
+    editorState.lastY = y;
+    currentStroke = [{x: x, y: y}];
+  };
   
-  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-  canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+  canvas.onmousemove = function(e) {
+    if (!editorState.isDrawing || !editorState.isDrawMode) return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var ctx = canvas.getContext('2d');
+    
+    if (editorState.isEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(editorState.lastX, editorState.lastY);
+      ctx.lineTo(x, y);
+      ctx.lineWidth = editorState.drawSize * 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(editorState.lastX, editorState.lastY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = editorState.drawColor;
+      ctx.lineWidth = editorState.drawSize;
+      ctx.stroke();
+    }
+    
+    editorState.lastX = x;
+    editorState.lastY = y;
+    currentStroke.push({x: x, y: y});
+  };
+  
+  canvas.onmouseup = function(e) {
+    if (editorState.isDrawing && currentStroke.length > 1) {
+      if (editorState.isEraser) {
+        sendEraseStroke(currentStroke, editorState.drawSize * 5);
+      } else {
+        sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
+      }
+    }
+    editorState.isDrawing = false;
+    currentStroke = [];
+  };
+  
+  canvas.onmouseleave = function(e) {
+    if (editorState.isDrawing && currentStroke.length > 1) {
+      if (editorState.isEraser) {
+        sendEraseStroke(currentStroke, editorState.drawSize * 5);
+      } else {
+        sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
+      }
+    }
+    editorState.isDrawing = false;
+    currentStroke = [];
+  };
+  
+  // Touch events
+  canvas.ontouchstart = function(e) {
+    if (!editorState.isDrawMode) return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var touch = e.touches[0];
+    var x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    editorState.isDrawing = true;
+    editorState.lastX = x;
+    editorState.lastY = y;
+    currentStroke = [{x: x, y: y}];
+  };
+  
+  canvas.ontouchmove = function(e) {
+    if (!editorState.isDrawing || !editorState.isDrawMode) return;
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var touch = e.touches[0];
+    var x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+    var y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+    var ctx = canvas.getContext('2d');
+    
+    if (editorState.isEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.moveTo(editorState.lastX, editorState.lastY);
+      ctx.lineTo(x, y);
+      ctx.lineWidth = editorState.drawSize * 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(editorState.lastX, editorState.lastY);
+      ctx.lineTo(x, y);
+      ctx.strokeStyle = editorState.drawColor;
+      ctx.lineWidth = editorState.drawSize;
+      ctx.stroke();
+    }
+    
+    editorState.lastX = x;
+    editorState.lastY = y;
+    currentStroke.push({x: x, y: y});
+  };
+  
+  canvas.ontouchend = function(e) {
+    if (editorState.isDrawing && currentStroke.length > 1) {
+      if (editorState.isEraser) {
+        sendEraseStroke(currentStroke, editorState.drawSize * 5);
+      } else {
+        sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
+      }
+    }
+    editorState.isDrawing = false;
+    currentStroke = [];
+  };
   
   window.addEventListener('resize', resizeCanvas);
 }
@@ -282,134 +403,6 @@ function resizeCanvas() {
   var img = new Image();
   img.onload = function() { ctx.drawImage(img, 0, 0); };
   img.src = tempData;
-}
-
-function getCanvasCoords(e) {
-  var canvas = document.getElementById('drawCanvas');
-  var rect = canvas.getBoundingClientRect();
-  return {
-    x: (e.clientX - rect.left) * (canvas.width / rect.width),
-    y: (e.clientY - rect.top) * (canvas.height / rect.height)
-  };
-}
-
-var currentStroke = [];
-
-function startDraw(e) {
-  if (!editorState.isDrawMode) return;
-  e.preventDefault();
-  editorState.isDrawing = true;
-  var coords = getCanvasCoords(e);
-  editorState.lastX = coords.x;
-  editorState.lastY = coords.y;
-  currentStroke = [{x: coords.x, y: coords.y}];
-}
-
-function draw(e) {
-  if (!editorState.isDrawing || !editorState.isDrawMode) return;
-  e.preventDefault();
-  var canvas = document.getElementById('drawCanvas');
-  var ctx = canvas.getContext('2d');
-  var coords = getCanvasCoords(e);
-  
-  if (editorState.isEraser) {
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.moveTo(editorState.lastX, editorState.lastY);
-    ctx.lineTo(coords.x, coords.y);
-    ctx.lineWidth = editorState.drawSize * 5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(editorState.lastX, editorState.lastY);
-    ctx.lineTo(coords.x, coords.y);
-    ctx.strokeStyle = editorState.drawColor;
-    ctx.lineWidth = editorState.drawSize;
-    ctx.stroke();
-  }
-  
-  editorState.lastX = coords.x;
-  editorState.lastY = coords.y;
-  currentStroke.push({x: coords.x, y: coords.y});
-}
-
-function endDraw(e) {
-  if (editorState.isDrawing && currentStroke.length > 1) {
-    if (editorState.isEraser) {
-      editorState.sendEraseStroke(currentStroke, editorState.drawSize * 5);
-    } else {
-      editorState.sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
-    }
-  }
-  editorState.isDrawing = false;
-  currentStroke = [];
-}
-
-function handleTouchStart(e) {
-  if (!editorState.isDrawMode) return;
-  e.preventDefault();
-  var canvas = document.getElementById('drawCanvas');
-  var rect = canvas.getBoundingClientRect();
-  var touch = e.touches[0];
-  var coords = {
-    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
-    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
-  };
-  editorState.isDrawing = true;
-  editorState.lastX = coords.x;
-  editorState.lastY = coords.y;
-  currentStroke = [{x: coords.x, y: coords.y}];
-}
-
-function handleTouchMove(e) {
-  if (!editorState.isDrawing || !editorState.isDrawMode) return;
-  e.preventDefault();
-  var canvas = document.getElementById('drawCanvas');
-  var ctx = canvas.getContext('2d');
-  var rect = canvas.getBoundingClientRect();
-  var touch = e.touches[0];
-  var coords = {
-    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
-    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
-  };
-  
-  if (editorState.isEraser) {
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.moveTo(editorState.lastX, editorState.lastY);
-    ctx.lineTo(coords.x, coords.y);
-    ctx.lineWidth = editorState.drawSize * 5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.globalCompositeOperation = 'source-over';
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(editorState.lastX, editorState.lastY);
-    ctx.lineTo(coords.x, coords.y);
-    ctx.strokeStyle = editorState.drawColor;
-    ctx.lineWidth = editorState.drawSize;
-    ctx.stroke();
-  }
-  
-  editorState.lastX = coords.x;
-  editorState.lastY = coords.y;
-  currentStroke.push({x: coords.x, y: coords.y});
-}
-
-function handleTouchEnd(e) {
-  if (editorState.isDrawing && currentStroke.length > 1) {
-    if (editorState.isEraser) {
-      editorState.sendEraseStroke(currentStroke, editorState.drawSize * 5);
-    } else {
-      editorState.sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
-    }
-  }
-  editorState.isDrawing = false;
-  currentStroke = [];
 }
 
 function toggleDrawMode() {
@@ -456,12 +449,9 @@ function clearDrawing() {
     var canvas = document.getElementById('drawCanvas');
     var ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    editorState.sendClearDrawing();
+    sendClearDrawing();
   }
 }
-
-function undoDraw() { editorState.undoDraw(); }
-function redoDraw() { editorState.redoDraw(); }
 
 function updateStatus(connected) {
   var status = document.getElementById('status');
@@ -499,15 +489,12 @@ function exportDocument() {
   var content = document.getElementById('editor').innerHTML;
   var canvas = document.getElementById('drawCanvas');
   var drawing = canvas.toDataURL();
-  var blob = new Blob([`
-    <html>
-      <head><title>CollabEdit Document</title></head>
-      <body>
-        ${content}
-        <img src="${drawing}" />
-      </body>
-    </html>
-  `], { type: 'text/html' });
+  var blob = new Blob([
+    '<html><head><title>CollabEdit Document</title></head><body>',
+    content,
+    '<img src="' + drawing + '" />',
+    '</body></html>'
+  ], { type: 'text/html' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
@@ -521,7 +508,7 @@ function clearDocument() {
     var editor = document.getElementById('editor');
     editor.innerText = '';
     clearDrawing();
-    editorState.sendUpdate('');
+    sendUpdate('');
     updateStats();
   }
 }
@@ -580,10 +567,10 @@ function confirmNickname() {
   localStorage.setItem('collabedit-username', name);
   document.getElementById('nicknameModal').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
-  editorState.sendUserInfo();
+  sendUserInfo();
   var roomId = window.location.hash.slice(1) || 'default';
   document.getElementById('roomId').textContent = roomId;
-  editorState.connect(roomId);
+  connect(roomId);
 }
 
 function toggleRoomInput() {
@@ -597,8 +584,8 @@ function toggleRoomInput() {
     input.style.display = 'none';
     var newRoom = input.value.trim() || 'default';
     roomId.textContent = newRoom;
-    editorState.disconnect();
-    editorState.connect(newRoom);
+    disconnect();
+    connect(newRoom);
   }
 }
 
@@ -622,7 +609,7 @@ editor.addEventListener('input', function(e) {
     updateStats();
     clearTimeout(sendTimeout);
     sendTimeout = setTimeout(function() {
-      editorState.sendUpdate(currentContent);
+      sendUpdate(currentContent);
     }, 100);
   }
 });
@@ -647,7 +634,7 @@ document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redoAction(); }
 });
 
-window.addEventListener('beforeunload', function() { editorState.disconnect(); });
+window.addEventListener('beforeunload', function() { disconnect(); });
 setInterval(function() { saveDocument(); }, 30000);
 setTimeout(initCanvas, 100);
 
