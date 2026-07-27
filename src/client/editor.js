@@ -24,8 +24,7 @@ class EditorState {
     this.userColors = {};
     this.cursorElements = {};
     this.typingIndicatorTimeout = null;
-    this.userPositions = {};
-    this.lastActiveTypers = {};
+    this.indicatorElements = {};
   }
 
   getUserColor(name) {
@@ -172,16 +171,16 @@ class EditorState {
     } else if (data.type === 'user_typing') {
       console.log(' Typing from:', data.userName);
       this.activeTypers[data.userName] = Date.now();
-      this.showTypingCursor(data.userName);
-      this.updateTypingIndicator();
+      this.showTypingIndicator(data.userName);
+      this.updateBottomIndicator();
     } else if (data.type === 'user_connected') {
       console.log(' User connected:', data.userName);
-      this.updateTypingIndicator();
+      this.updateBottomIndicator();
     } else if (data.type === 'user_disconnected') {
       console.log(' User disconnected:', data.userName);
       delete this.activeTypers[data.userName];
-      this.removeTypingCursor(data.userName);
-      this.updateTypingIndicator();
+      this.hideTypingIndicator(data.userName);
+      this.updateBottomIndicator();
     }
   }
 
@@ -189,25 +188,32 @@ class EditorState {
     const selection = window.getSelection();
     if (selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const editorRect = document.getElementById('editor').getBoundingClientRect();
-      return {
-        x: rect.left - editorRect.left + 20,
-        y: rect.top - editorRect.top + 20
-      };
+      try {
+        const rect = range.getClientRects()[0];
+        if (rect) {
+          const editor = document.getElementById('editor');
+          const editorRect = editor.getBoundingClientRect();
+          return {
+            x: rect.left - editorRect.left,
+            y: rect.top - editorRect.top + 10
+          };
+        }
+      } catch (e) {
+        console.log('Error getting cursor position:', e);
+      }
     }
     return { x: 20, y: 30 };
   }
 
-  showTypingCursor(userName) {
+  showTypingIndicator(userName) {
     const container = document.getElementById('typingCursorContainer');
     if (!container) return;
     
-    if (this.cursorElements[userName]) {
-      this.cursorElements[userName].style.display = 'flex';
+    if (this.indicatorElements[userName]) {
+      this.indicatorElements[userName].style.display = 'flex';
       const pos = this.getCursorPosition();
-      this.cursorElements[userName].style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
-      this.cursorElements[userName].style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
+      this.indicatorElements[userName].style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
+      this.indicatorElements[userName].style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
       return;
     }
     
@@ -215,42 +221,42 @@ class EditorState {
     const initials = this.getInitials(userName);
     const pos = this.getCursorPosition();
     
-    const cursor = document.createElement('div');
-    cursor.className = 'typing-cursor';
-    cursor.dataset.user = userName;
-    cursor.innerHTML = `
+    const indicator = document.createElement('div');
+    indicator.className = 'typing-cursor';
+    indicator.dataset.user = userName;
+    indicator.innerHTML = `
       <div class="cursor-avatar" style="background:${color}">${initials}</div>
       <span class="cursor-name">${userName}</span>
       <span class="cursor-blink"></span>
     `;
     
-    cursor.style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
-    cursor.style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
+    indicator.style.left = Math.min(pos.x, container.offsetWidth - 120) + 'px';
+    indicator.style.top = Math.min(pos.y, container.offsetHeight - 40) + 'px';
     
-    container.appendChild(cursor);
-    this.cursorElements[userName] = cursor;
+    container.appendChild(indicator);
+    this.indicatorElements[userName] = indicator;
     
     if (this.typingIndicatorTimeout) {
       clearTimeout(this.typingIndicatorTimeout);
     }
     this.typingIndicatorTimeout = setTimeout(() => {
-      this.removeTypingCursor(userName);
-    }, 3000);
+      this.hideTypingIndicator(userName);
+    }, 4000);
   }
 
-  removeTypingCursor(userName) {
-    if (this.cursorElements[userName]) {
-      this.cursorElements[userName].style.display = 'none';
+  hideTypingIndicator(userName) {
+    if (this.indicatorElements[userName]) {
+      this.indicatorElements[userName].style.display = 'none';
       setTimeout(() => {
-        if (this.cursorElements[userName]) {
-          this.cursorElements[userName].remove();
-          delete this.cursorElements[userName];
+        if (this.indicatorElements[userName]) {
+          this.indicatorElements[userName].remove();
+          delete this.indicatorElements[userName];
         }
       }, 300);
     }
   }
 
-  updateTypingIndicator() {
+  updateBottomIndicator() {
     const indicator = document.getElementById('typingIndicator');
     if (!indicator) return;
     
@@ -259,15 +265,11 @@ class EditorState {
       return now - this.activeTypers[name] < 3000 && name !== this.userName;
     });
     
-    console.log('👥 Active typers:', active);
-    
     if (active.length > 0) {
       indicator.innerHTML = `<i class="fas fa-pen" style="margin-right:6px;color:#ED7497;"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
       indicator.className = 'active';
-      console.log('✅ Typing indicator shown');
     } else {
       indicator.className = '';
-      console.log('❌ Typing indicator hidden');
     }
   }
 
@@ -359,9 +361,9 @@ class EditorState {
         type: 'update',
         content: content
       }));
-      console.log(' Update sent');
+      console.log('📤 Update sent');
     } else {
-      console.warn(' Cannot send update - WebSocket not open');
+      console.warn('⚠️ Cannot send update - WebSocket not open');
     }
   }
 
@@ -737,7 +739,7 @@ document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
 
-console.log(' Starting CollabEdit...');
+console.log('🚀 Starting CollabEdit...');
 
 document.getElementById('modalNicknameInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -768,11 +770,6 @@ editor.addEventListener('input', (e) => {
   }
 });
 
-editor.addEventListener('mousemove', () => {
-  if (editorState.isDrawMode) return;
-  // Update cursor positions for typing indicators
-});
-
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     setTimeout(() => {
@@ -800,6 +797,17 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     redoAction();
   }
+});
+
+// Update cursor position when clicking in editor
+editor.addEventListener('click', () => {
+  if (editorState.isDrawMode) return;
+  // Force update cursor positions
+});
+
+editor.addEventListener('mouseup', () => {
+  if (editorState.isDrawMode) return;
+  // Update cursor positions after selection change
 });
 
 window.addEventListener('beforeunload', () => {
