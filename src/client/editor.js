@@ -25,7 +25,7 @@ class EditorState {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname || 'localhost';
     const port = window.location.port || (window.location.protocol === 'https:' ? '' : ':3000');
-    const wsUrl = `${protocol}//${host}${port}/${roomId}`;
+    const wsUrl = protocol + '//' + host + port + '/' + roomId;
     console.log('Connecting to WebSocket:', wsUrl);
     
     try {
@@ -215,14 +215,14 @@ class EditorState {
 
   sendDrawStroke(points, color, size) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const drawData = { points, color, size };
+      const drawData = { points: points, color: color, size: size };
       this.ws.send(JSON.stringify({ type: 'draw', drawData: drawData, drawing: JSON.stringify(drawData) }));
     }
   }
 
   sendEraseStroke(points, size) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: 'erase_draw', eraseData: { points, size } }));
+      this.ws.send(JSON.stringify({ type: 'erase_draw', eraseData: { points: points, size: size } }));
     }
   }
 
@@ -254,15 +254,19 @@ const editorState = new EditorState();
 function initCanvas() {
   const canvas = document.getElementById('drawCanvas');
   const container = document.getElementById('editor-container');
+  
   canvas.width = container.offsetWidth;
   canvas.height = document.getElementById('editor').offsetHeight;
+  
   canvas.addEventListener('mousedown', startDraw);
   canvas.addEventListener('mousemove', draw);
   canvas.addEventListener('mouseup', endDraw);
   canvas.addEventListener('mouseleave', endDraw);
-  canvas.addEventListener('touchstart', handleTouchStart);
-  canvas.addEventListener('touchmove', handleTouchMove);
-  canvas.addEventListener('touchend', endDraw);
+  
+  canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+  canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+  
   window.addEventListener('resize', resizeCanvas);
 }
 
@@ -274,7 +278,7 @@ function resizeCanvas() {
   canvas.height = document.getElementById('editor').offsetHeight;
   const ctx = canvas.getContext('2d');
   const img = new Image();
-  img.onload = () => { ctx.drawImage(img, 0, 0); };
+  img.onload = function() { ctx.drawImage(img, 0, 0); };
   img.src = tempData;
 }
 
@@ -287,10 +291,21 @@ function getCanvasCoords(e) {
   };
 }
 
+function getTouchCoords(e) {
+  const canvas = document.getElementById('drawCanvas');
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  return {
+    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
 let currentStroke = [];
 
 function startDraw(e) {
   if (!editorState.isDrawMode) return;
+  e.preventDefault();
   editorState.isDrawing = true;
   const coords = getCanvasCoords(e);
   editorState.lastX = coords.x;
@@ -300,6 +315,7 @@ function startDraw(e) {
 
 function draw(e) {
   if (!editorState.isDrawing || !editorState.isDrawMode) return;
+  e.preventDefault();
   const canvas = document.getElementById('drawCanvas');
   const ctx = canvas.getContext('2d');
   const coords = getCanvasCoords(e);
@@ -328,7 +344,7 @@ function draw(e) {
   currentStroke.push({x: coords.x, y: coords.y});
 }
 
-function endDraw() {
+function endDraw(e) {
   if (editorState.isDrawing && currentStroke.length > 1) {
     if (editorState.isEraser) {
       editorState.sendEraseStroke(currentStroke, editorState.drawSize * 5);
@@ -341,15 +357,67 @@ function endDraw() {
 }
 
 function handleTouchStart(e) {
+  if (!editorState.isDrawMode) return;
   e.preventDefault();
+  const canvas = document.getElementById('drawCanvas');
+  const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
-  startDraw({ clientX: touch.clientX, clientY: touch.clientY, target: e.target, preventDefault: () => {} });
+  const coords = {
+    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
+  };
+  editorState.isDrawing = true;
+  editorState.lastX = coords.x;
+  editorState.lastY = coords.y;
+  currentStroke = [{x: coords.x, y: coords.y}];
 }
 
 function handleTouchMove(e) {
+  if (!editorState.isDrawing || !editorState.isDrawMode) return;
   e.preventDefault();
+  const canvas = document.getElementById('drawCanvas');
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
-  draw({ clientX: touch.clientX, clientY: touch.clientY, target: e.target, preventDefault: () => {} });
+  const coords = {
+    x: (touch.clientX - rect.left) * (canvas.width / rect.width),
+    y: (touch.clientY - rect.top) * (canvas.height / rect.height)
+  };
+  
+  if (editorState.isEraser) {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.moveTo(editorState.lastX, editorState.lastY);
+    ctx.lineTo(coords.x, coords.y);
+    ctx.lineWidth = editorState.drawSize * 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(editorState.lastX, editorState.lastY);
+    ctx.lineTo(coords.x, coords.y);
+    ctx.strokeStyle = editorState.drawColor;
+    ctx.lineWidth = editorState.drawSize;
+    ctx.stroke();
+  }
+  
+  editorState.lastX = coords.x;
+  editorState.lastY = coords.y;
+  currentStroke.push({x: coords.x, y: coords.y});
+}
+
+function handleTouchEnd(e) {
+  if (editorState.isDrawing && currentStroke.length > 1) {
+    if (editorState.isEraser) {
+      editorState.sendEraseStroke(currentStroke, editorState.drawSize * 5);
+    } else {
+      editorState.sendDrawStroke(currentStroke, editorState.drawColor, editorState.drawSize);
+    }
+  }
+  editorState.isDrawing = false;
+  currentStroke = [];
 }
 
 function toggleDrawMode() {
@@ -451,7 +519,7 @@ function exportDocument() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `document-${Date.now()}.html`;
+  a.download = 'document-' + Date.now() + '.html';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -547,29 +615,29 @@ document.getElementById('modalNicknameInput').value = savedName;
 document.getElementById('userNameDisplay').textContent = savedName;
 editorState.userName = savedName;
 
-document.getElementById('modalNicknameInput').addEventListener('keydown', (e) => {
+document.getElementById('modalNicknameInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') confirmNickname();
 });
 
 const editor = document.getElementById('editor');
 let sendTimeout = null;
 
-editor.addEventListener('input', (e) => {
+editor.addEventListener('input', function(e) {
   if (editorState.isRemoteUpdate) return;
   const currentContent = editor.innerText;
   if (currentContent !== editorState.lastContent) {
     editorState.lastContent = currentContent;
     updateStats();
     clearTimeout(sendTimeout);
-    sendTimeout = setTimeout(() => {
+    sendTimeout = setTimeout(function() {
       editorState.sendUpdate(currentContent);
     }, 100);
   }
 });
 
-editor.addEventListener('keydown', (e) => {
+editor.addEventListener('keydown', function(e) {
   if (e.key === 'Enter') {
-    setTimeout(() => {
+    setTimeout(function() {
       const selection = window.getSelection();
       if (selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
@@ -581,14 +649,14 @@ editor.addEventListener('keydown', (e) => {
   }
 });
 
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', function(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveDocument(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoAction(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redoAction(); }
 });
 
-window.addEventListener('beforeunload', () => { editorState.disconnect(); });
-setInterval(() => { saveDocument(); }, 30000);
+window.addEventListener('beforeunload', function() { editorState.disconnect(); });
+setInterval(function() { saveDocument(); }, 30000);
 setTimeout(initCanvas, 100);
 
-console.log(' Editor initialized');
+console.log('Editor initialized');
