@@ -22,6 +22,7 @@ class EditorState {
     this.isTyping = false;
     this.activeTypers = {};
     this.nicknameConfirmed = false;
+    this.typingTimer = null;
   }
 
   connect(roomId = 'default') {
@@ -153,11 +154,14 @@ class EditorState {
         console.log('Remote erase applied');
       }
     } else if (data.type === 'user_typing') {
+      console.log('Typing from:', data.userName);
       this.activeTypers[data.userName] = Date.now();
       this.updateTypingIndicator();
     } else if (data.type === 'user_connected') {
+      console.log('User connected:', data.userName);
       this.updateTypingIndicator();
     } else if (data.type === 'user_disconnected') {
+      console.log('User disconnected:', data.userName);
       delete this.activeTypers[data.userName];
       this.updateTypingIndicator();
     }
@@ -170,6 +174,8 @@ class EditorState {
       return now - this.activeTypers[name] < 3000 && name !== this.userName;
     });
     
+    console.log('Active typers:', active);
+    
     if (active.length > 0) {
       indicator.innerHTML = `<i class="fas fa-pen" style="margin-right:6px;color:#ED7497;"></i><span class="typing-name">${active.join(', ')}</span> ${active.length === 1 ? 'is' : 'are'} typing...`;
       indicator.className = 'active';
@@ -180,6 +186,7 @@ class EditorState {
 
   sendTyping() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('Sending typing from:', this.userName);
       this.ws.send(JSON.stringify({
         type: 'typing',
         userName: this.userName
